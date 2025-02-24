@@ -1,4 +1,4 @@
-# Dominating_Dominion
+# From Shuffling to Ruling: An AI’s Journey to Dominion Domination
 
 **Goal:** Get the most points
 

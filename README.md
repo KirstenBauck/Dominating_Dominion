@@ -1,7 +1,9 @@
 # Dominating_Dominion
 
 **Goal:** Get the most points
+
 **End Condition:** Run out of provinces
+
 **Challenges**:
 
 # Reward Function

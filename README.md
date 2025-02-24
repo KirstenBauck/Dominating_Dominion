@@ -15,3 +15,6 @@
 
 # Multi-player
 - Want to maximize the difference between players
+
+# Base 10 cards to use (this is the recommended first set)
+Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Woodcutter, and Workshop

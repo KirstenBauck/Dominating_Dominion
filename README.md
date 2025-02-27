@@ -1,5 +1,8 @@
 # From Shuffling to Ruling: An AI’s Journey to Dominion Domination
 
+# Install Environment
+`conda env create -f environment.yml`
+
 **Goal:** Get the most points
 
 **End Condition:** Run out of provinces

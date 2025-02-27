@@ -21,3 +21,15 @@
 
 # Base 10 cards to use (this is the recommended first set)
 Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Woodcutter, and Workshop
+
+
+# Notes/articles
+- [Dominion Rulebook](https://cdn.1j1ju.com/medias/59/e6/c2-dominion-rulebook.pdf)
+- [Github Possible Implimentation](https://github.com/dwagon/pydominion/tree/main/dominion) to look into
+- [Walkthrough](https://ianwdavis.com/dominion.html) of how one person went about AI Dominion implimentation
+- [Research Paper 1](https://cs230.stanford.edu/projects_fall_2019/reports/26260348.pdf)
+- [Recent Gradiant Descent](https://johnchenresearch.github.io/demon/?ref=ruder.io) <-- Look into using YellowFin
+
+# Gymnasium
+- [Creating an environment](https://gymnasium.farama.org/introduction/create_custom_env/)
+  - [Spaces](https://gymnasium.farama.org/api/spaces/)

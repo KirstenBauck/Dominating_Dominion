@@ -10,7 +10,7 @@ Code Kirsten ran
 
 # Install Environment
 1. Clone the repository: `git clone --recursive https://github.com/KirstenBauck/Dominating_Dominion.git`
-  - If clonsed without recursive just run `git submodule update --init --recursive` to be able to import pydominion
+    - If cloned without  `--recursive` just run `git submodule update --init --recursive` to be able to import pydominion
 2. Create conda environment: `conda env create -f environment.yml`
 3. Activate conda environment: `conda activate RL_dominion`
 

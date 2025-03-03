@@ -3,18 +3,16 @@
 # Pydominion
 This project builds upon [pydominion](https://github.com/dwagon/pydominion), originally developed by Dougal Scott. The original repository is licensed under the MIT License.
 
-Need to run:
-`git submodule update --init --recursive` to be able ti import pydominion
-
-
 Code Kirsten ran
-`git submodule add https://github.com/dwagon/pydominion.git external/pydominion`
-`git submodule update --init --recursive`
-`pip install -e external/pydominion`
-
+- `git submodule add https://github.com/dwagon/pydominion.git external/pydominion`
+- `git submodule update --init --recursive`
+- `pip install -e external/pydominion`
 
 # Install Environment
-`conda env create -f environment.yml`
+1. Clone the repository: `git clone --recursive https://github.com/KirstenBauck/Dominating_Dominion.git`
+  - If clonsed without recursive just run `git submodule update --init --recursive` to be able to import pydominion
+2. Create conda environment: `conda env create -f environment.yml`
+3. Activate conda environment: `conda activate RL_dominion`
 
 **Goal:** Get the most points
 

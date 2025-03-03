@@ -1,0 +1,2 @@
+# Ignore external folder where pydominion is cloned as a submodule
+external/

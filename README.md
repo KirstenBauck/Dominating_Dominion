@@ -1,5 +1,18 @@
 # From Shuffling to Ruling: An AI’s Journey to Dominion Domination
 
+# Pydominion
+This project builds upon [pydominion](https://github.com/dwagon/pydominion), originally developed by Dougal Scott. The original repository is licensed under the MIT License.
+
+Need to run:
+`git submodule update --init --recursive` to be able ti import pydominion
+
+
+Code Kirsten ran
+`git submodule add https://github.com/dwagon/pydominion.git external/pydominion`
+`git submodule update --init --recursive`
+`pip install -e external/pydominion`
+
+
 # Install Environment
 `conda env create -f environment.yml`
 

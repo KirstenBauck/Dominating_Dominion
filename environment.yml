@@ -7,3 +7,6 @@ dependencies:
   - python>=3.8
   - gymnasium>=0.26.3
   - numpy
+  - pip  # Ensure pip is installed in the environment
+  - pip:
+      - -e ./external/pydominion  # Install pydominion as editable from your local submodule path

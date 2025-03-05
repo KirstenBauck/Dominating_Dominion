@@ -30,7 +30,7 @@ If you have some data, you may prepare a preliminary figure. These are always ve
 
 ### **Abstract**
 
-Our project's intent is to develop a reinforcement learning (RL) agent capable of effectively playing the board game *Dominion*. To achieve this, we will use *PyDominion* and *Gymnasium* to establish an environment where the agent can learn. The dataset consists of the game’s structured rules and objects which mainly comes from *PyDominion*. The primary goal is to develop a functional RL agent that can make strategic decisions within the game. Secondarily, we hope to employ different RL methodologies and compare their performance. This study will require developing an appropriate reward system and addressing integration challenges between *PyDominion* and the RL framework.
+Our project's intent is to develop a reinforcement learning (RL) agent capable of effectively playing the board game *Dominion*. To achieve this, we will use *PyDominion* to establish an environment where the agent can learn. The dataset consists of the game’s structured rules and objects which mainly comes from *PyDominion*. The primary goal is to develop a functional RL agent that can make strategic decisions within the game. Secondarily, we hope to employ different RL methodologies and compare their performance. This study will require developing an appropriate reward system and addressing integration challenges between *PyDominion* and the RL framework.
 
 ------------------------------------------------------------------------
 

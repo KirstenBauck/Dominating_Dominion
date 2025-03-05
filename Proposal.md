@@ -82,9 +82,10 @@ If the project is successful, we expect to develop an RL agent capable of playin
 - Explore ML methods (33%/ 33%/ 33%)
 - Reward Function (33%/ 33%/ 33%)
 
-- Implementing agent 1 (~90%)
-- Implementing agent 2 (~90%)
-- Implementing agent 3 (~90%)
+- Implement agents
+    - Implementing agent 1 (~90%)
+    - Implementing agent 2 (~90%)
+    - Implementing agent 3 (~90%)
 
 - Evaluating performance of the agent (33%/ 33%/ 33%)
 - Tuning Reward function (33%/ 33%/ 33%)

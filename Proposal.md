@@ -1,31 +1,3 @@
-## Outline
-
-### Title and Abstract.
-
-The title should be informative based on the project you intend to do. The abstract should contain 1) the data you are working with and how it is going to be collected, 2) the goal for how you will use the data if you collect everything you are hoping for, and 3) the goals for the project - what do you expect to accomplish? One paragraph summary (maximum 250 words, although I won't check).
-
-### Introduction.
-
-What data did you collect, why are you interested in it? If you have the data collected to some extent, show some examples of the data.frame in a properly formatted table (with legend) and indicate to me you have successfully collected data!
-
-### Methods.
-
-Discuss what you need to do to scrape/collect the data. You may explore any difficulties you think you may encounter here. Then pivot to what you plan to do with the data! What types of analysis do you want to try and use? What type of advanced statistical modeling may be necessary? If modeling is out of reach, when other ways do you plan to analyze the data?
-
-### Expected Outcomes.
-
-If everything goes correctly, what do you expect to find from this study?
-
-### Group Considerations.
-
-Provide an additional statement of expected work. What are the different tasks involved in this project and how do you see the work being distributed? In grants, this typically looks something like this. This work involves data collection (RB - 25%), data wrangling (RB - 100%), data modeling (RB - 75%), figure and table creation (RB - 40%), and final poster presentation (RB - 40%). Please work with your group members to determine a rough outline of who will do what work, and what contributions are expected to those sections. This does not have to be 100% accurate, but should reflect the relative workload of each student on the project, and should be evenly dispersed between students.
-
-### Other things to consider.
-
-If you have some data, you may prepare a preliminary figure. These are always very helpful when we submit grants, so if you have the time, think of one nice visualization that might help understand the problem at hand. I also encourage making a small table displaying a data.frame if you have data available. You could also consider a table of variables describing what you have collected and what the variables represent. If you do not have any data yet, you should spend significant time making sure you can get the data. These projects will not make it far without the data collection step being successful! Finally - if you get motivated - consider starting your GitHub repository for Project 2. This repository will show a lot of diversity in your work, and it is never to early to start! With group projects, you will be required to setup and share these GitHub repositories between group members.
-
-## Actual Proposal
-
 ## **Dominating Dominion**
 
 ### **Abstract**

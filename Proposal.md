@@ -46,36 +46,17 @@ With the idea of developing an AI agent to play a complex board game, we settled
 
 To build an RL agent for *Dominion*, we plan to approach it in these stages:
 
-1.  **Environment Setup**: We will integrate *PyDominion* with *Gymnasium*, to create an environment for reinforcement learning frameworks. This requires defining the observation space (game-state representation) and the action space (available moves).\
-2.  **Reward System Design**: Creating a robust reward function is integral to guiding the agent’s learning. While the exact structure is yet to be determined, and will likely need tuning along the way, potential reward mechanisms could involve victory points, deck composition, and game progression.\
-3.  **Implement the RL Agent**: We will explore RL methodologies to find good fits for our project. Currently, Deep Q-Networks (DQN) and Monte Carlo Tree Search (MCTS) are appealing but others may be selected depending on our findings. We will then implement these methods as an actor in our environment.\
-4.  **Training the RL Agent**: We will run simulations in the environment to allow the RL agent to learn the game. This will likely involve tweaking our agent implementations and reward systems.\
+1.  **Environment Setup**: We will integrate *PyDominion*, to create an environment for reinforcement learning frameworks. This requires defining the observation space (game-state representation) and the action space (available moves).
+2.  **Reward System Design**: Creating a robust reward function is integral to guiding the agent’s learning. While the exact structure is yet to be determined, and will likely need tuning along the way, potential reward mechanisms could involve victory points, deck composition, and game progression.
+3.  **Implement the RL Agent**: We will explore RL methodologies to find good fits for our project. Currently, Deep Q-Networks (DQN) and Monte Carlo Tree Search (MCTS) are appealing but others may be selected depending on our findings. We will then implement these methods as an actor in our environment.
+4.  **Training the RL Agent**: We will run simulations in the environment to allow the RL agent to learn the game. This will likely involve tweaking our agent implementations and reward systems.
 5.  **Evaluation and Analysis**: The agent’s performance will be measured by its win rate against baseline strategies (e.g., random moves). If time permits, we will compare the effectiveness of different RL approaches.
 
-**Challenges we anticipate include:**\
-- Correctly modeling *Dominion* as an RL environment.\
-- Properly establishing effective training given the game’s complexity.\
+**Challenges we anticipate include:**
+- Properly establishing effective training given the game’s complexity.
 - Tuning the reward systems to encourage optimal play.
 
-------------------------------------------------------------------------
-
-### **Expected Outcomes**
-
-If the project is successful, we expect to develop an RL agent capable of playing *Dominion* at a competitive level. The agent should demonstrate an understanding of strategic decision-making, such as optimizing deck composition and selecting strong card combinations. Ideally, we will also be able to compare different RL methods to determine their effectiveness in a game like *Dominion*.
-
-------------------------------------------------------------------------
-
-### **Group Considerations**
-
-(*TBD*)
-
-------------------------------------------------------------------------
-
-### **Other things to consider**
-
 One important factor in our developing this model is the game-state representation. The table below provides an example of how the agent will perceive and interact with the game environment:
-
-(*NEEDS REFINING, VERY IMPORTANT*)
 
 | Feature | Example Value | Description |
 |------------------|---------------------|---------------------------------|
@@ -88,6 +69,40 @@ One important factor in our developing this model is the game-state representati
 
 This structured format ensures that the RL agent receives well-defined inputs, facilitating effective decision-making.
 
-(*Could potentially create a preliminary reward function chart in a similar manner*)
+------------------------------------------------------------------------
+
+### **Expected Outcomes**
+
+If the project is successful, we expect to develop an RL agent capable of playing *Dominion* at a competitive level. The agent should demonstrate an understanding of strategic decision-making, such as optimizing deck composition and selecting strong card combinations. Ideally, we will also be able to compare different RL methods to determine their effectiveness in a game like *Dominion*.
+
+------------------------------------------------------------------------
+
+### **Group Considerations**
+
+- Explore ML methods (33%/ 33%/ 33%)
+- Reward Function (33%/ 33%/ 33%)
+
+- Implementing agent 1 (~90%)
+- Implementing agent 2 (~90%)
+- Implementing agent 3 (~90%)
+
+- Evaluating performance of the agent (33%/ 33%/ 33%)
+- Tuning Reward function (33%/ 33%/ 33%)
+
+- Compare performance of agents (33%/ 33%/ 33%)
+- Compile results and create visualization (33%/ 33%/ 33%)
+
+- **Potential Visualizations**
+    - ML Agent Architecture
+    - Game-state representation
+    - rewared function 
+    - Agent performance (potentially against other agents/iterations)
+    - game statistics (i.e. average turns, scores, deck size)
+    - 
+- Produce poster (33%/ 33%/ 33%)
+
+------------------------------------------------------------------------
+
+### **Other things to consider**
 
 <https://github.com/KirstenBauck/Dominating_Dominion>

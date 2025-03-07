@@ -11,7 +11,7 @@ def setup_game():
         "numplayers": 2
     }
     game = Game.Game(**game_args)
-    # Add the custom bot
+    # Add the custom bot (other player is assumed human right now)
     game.players[1] = MonteCarloBotPlayer(game) # Player 1 is bot
     return game
 
@@ -36,7 +36,7 @@ def run_game_with_agent():
     game.whoWon()
 
 
-
+# Make a separate class for each bot
 class MonteCarloBotPlayer(Player):
     def __init__(self, game, name="MonteCarloBot", quiet=False, num_simulations=100, **kwargs):
         super().__init__(game, name, **kwargs)

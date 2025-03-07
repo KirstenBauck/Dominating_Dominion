@@ -8,7 +8,7 @@ Our project's intent is to develop a reinforcement learning (RL) agent capable o
 
 ### **Introduction**
 
-The primary focus of this project is to explore reinforcement learning techniques by training an agent to play *Dominion*, a popular deck-building card game. *PyDominion* provides an implementation of the game in our language of choice, which serves as our foundation for creating a learning environment. By using *Gymnasium*, we can construct an RL-compatible system that allows the agent to iteratively improve its performance.
+The primary focus of this project is to explore reinforcement learning techniques by training an agent to play *Dominion*, a popular deck-building card game. *PyDominion* provides an implementation of the game in our language of choice, which serves as our foundation for creating a learning environment. We will construct an RL-compatible environment that allows the agent to iteratively improve its performance.
 
 With the idea of developing an AI agent to play a complex board game, we settled on *Dominion* for it's strategic depth, complexity, and stochastic nature. The features come together to make a game that appropriately pushes the limits of our ability while staying within a what we think is a reasonable scope. Specifically, the non-determinism of the *Dominion*'s design adds an especially interesting element that makes for a more interesting problem. Our goal is to create an RL model that learns optimal strategies through repeated gameplay.
 
@@ -25,6 +25,7 @@ To build an RL agent for *Dominion*, we plan to approach it in these stages:
 5.  **Evaluation and Analysis**: The agent’s performance will be measured by its win rate against baseline strategies (e.g., random moves). If time permits, we will compare the effectiveness of different RL approaches.
 
 **Challenges we anticipate include:**
+- Learning new concepts is often difficult, especially with something as complex as ML methodologies 
 - Properly establishing effective training given the game’s complexity.
 - Tuning the reward systems to encourage optimal play.
 
@@ -51,19 +52,25 @@ If the project is successful, we expect to develop an RL agent capable of playin
 
 ### **Group Considerations**
 
-- Explore ML methods (33%/ 33%/ 33%)
-- Reward Function (33%/ 33%/ 33%)
+- Explore ML methods (33% RH/ 33% KB/ 33% CW)
+- Reward Function (33% RH/ 33% KB/ 33% CW)
 
 - Implement agents
-    - Implementing agent 1 (~90%)
-    - Implementing agent 2 (~90%)
-    - Implementing agent 3 (~90%)
+    - Implementing agent 1 (~90% RH)
+    - Implementing agent 2 (~90% KB)
+    - Implementing agent 3 (~90% CW)
     
-- Evaluating performance of the agent (33%/ 33%/ 33%)
-- Tuning Reward function (33%/ 33%/ 33%)
+- Evaluating performance of the agent (33% RH/ 33% KB/ 33% CW)
+- Tuning Reward function (33% RH/ 33% KB/ 33% CW)
 
-- Compare performance of agents (33%/ 33%/ 33%)
-- Compile results and create visualization (33%/ 33%/ 33%)
+- Compare performance of agents (33% RH/ 33% KB/ 33% CW)
+- Compile results and create visualization (33% RH/ 33% KB/ 33% CW)
+
+- Produce poster (33% RH/ 33% KB/ 33% CW)
+
+------------------------------------------------------------------------
+
+### **Other things to consider**
 
 - **Potential Visualizations**
     - ML Agent Architecture
@@ -71,11 +78,5 @@ If the project is successful, we expect to develop an RL agent capable of playin
     - rewared function 
     - Agent performance (potentially against other agents/iterations)
     - game statistics (i.e. average turns, scores, deck size)
-
-- Produce poster (33%/ 33%/ 33%)
-
-------------------------------------------------------------------------
-
-### **Other things to consider**
 
 <https://github.com/KirstenBauck/Dominating_Dominion>

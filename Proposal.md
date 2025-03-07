@@ -40,8 +40,6 @@ One important factor in our developing this model is the game-state representati
 | Victory Points | 3 VP | Player’s current victory point total |
 | Actions/Draws Left | 1 action, 2 draws | Available turn actions |
 
-This structured format ensures that the RL agent receives well-defined inputs, facilitating effective decision-making.
-
 ------------------------------------------------------------------------
 
 ### **Expected Outcomes**

@@ -1,4 +1,4 @@
-# From Shuffling to Ruling: An AI’s Journey to Dominion Domination
+# Dominating Dominion: Training AI Agents to Play Dominion
 
 # Pydominion
 This project builds upon [pydominion](https://github.com/dwagon/pydominion), originally developed by Dougal Scott. The original repository is licensed under the MIT License.
@@ -22,3 +22,9 @@ Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Woodcutter, and W
 - [Walkthrough](https://ianwdavis.com/dominion.html) of how one person went about AI Dominion implementation
 - [Research Paper 1](https://cs230.stanford.edu/projects_fall_2019/reports/26260348.pdf)
 - [Recent Gradiant Descent](https://johnchenresearch.github.io/demon/?ref=ruder.io) <-- Look into using YellowFin
+
+# TODO
+- Morning of 3/19: Each person tries to get PyDominon to work (Claire, Kirsten)
+- 3/21: Register for conference
+- Visualize environment
+- Diagram of agent

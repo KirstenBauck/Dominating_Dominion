@@ -23,6 +23,7 @@ class DominionEnv(gym.Env):
         ]
         self.base_cards = ["Copper", "Silver", "Gold", "Estate", "Duchy", "Province"]
         self.cards = self.base_cards + self.card_set
+        self.quiet = quiet_flag
 
         # Initialize Dominion game
         self.game = Game(
@@ -54,7 +55,10 @@ class DominionEnv(gym.Env):
         """Reset the game"""
         super().reset(seed=seed)
         self.game.game_over = False # Ensure game state is reset
+        self.game.players.clear()
         self.game.start_game()
+        self.game.current_player.phase = Phase.NONE
+
         return self._get_observation(), self._get_info()
     
     def _get_observation(self):
@@ -102,14 +106,20 @@ class DominionEnv(gym.Env):
 
         # Check if this is a new turn and start it
         if self.game.current_player.phase == Phase.NONE:
+            self.game.current_player.output(f"NEW TURN")
             self.game._validate_cards()
             self.game.current_player = self.game.player_to_left(self.game.current_player)
+            self.game.current_player.output(f"Next Player: {self.game.current_player.name}")
             self.game.current_player.start_turn()
             self.game.current_player.turn_number += 1
             if self.game.current_player.skip_turn:
                 self.game.current_player.skip_turn = False
                 return self._get_observation(), 0, False, False, {}
+            self.game.current_player.output(f"{'#' * 30} Turn {self.game.current_player.turn_number} {'#' * 30}")
+            stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
+            self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
             self.game.current_player.phase = Phase.ACTION
+            self.game.current_player.output(f"*****ACTION PHASE****")
 
         # Get available options
         options = self.game.current_player._choice_selection()
@@ -120,22 +130,27 @@ class DominionEnv(gym.Env):
         
         # Choose the options
         opt = options[action]
+        self.game.current_player.output(f"Chosen Option: {opt['verb']}")
         self.game.current_player._perform_action(opt)  # Perform action
 
         # Check if phase should transition
         if opt["action"] in ["quit", None]:  
             # Transition from ACTION to BUY
             if self.game.current_player.phase == Phase.ACTION:
+                self.game.current_player.output(f"*****BUY PHASE****")
                 self.game.current_player.phase = Phase.BUY
             # Transition from BUY to CLEANUP
             elif self.game.current_player.phase == Phase.BUY:
                 # Ensure any cards that have effects are triggered
                 self.game.current_player.hook_end_buy_phase()
+                self.game.current_player.output(f"*****CLEANUP PHASE****")
                 self.game.current_player.phase = Phase.CLEANUP
 
         # If in cleanup phase, end turn and start next player's turn
         if self.game.current_player.phase == Phase.CLEANUP:
+            self.game.current_player.output(f"Inside cleanup phase")
             self.game.current_player.cleanup_phase()
+            self.game.current_player.output(f"Ending Turn {self.game.current_player.name}")
             self.game.current_player._card_check()
             self.game.current_player.end_turn()
             self.game._validate_cards()
@@ -165,8 +180,3 @@ class DominionEnv(gym.Env):
         player_0_score = scores.get(first_player.name, 0)
         # Check if first player score is the maximum score
         return player_0_score == max(scores.values())
-
-    # This function isn't really necessary I dont think
-    def render(self, mode="human"):
-        """Print game state for debugging"""
-        self.game.print_state(card_dump=True)

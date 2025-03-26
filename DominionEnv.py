@@ -17,6 +17,7 @@ class DominionEnv(gym.Env):
         super(DominionEnv, self).__init__()
         self.num_players = num_players
         # Properly initialize the cards in play (Base + Kingdom)
+        #TODO: ALphatize
         self.card_set = card_set if card_set else [
             "Cellar", "Market", "Militia", "Mine", "Moat", "Remodel", "Smithy", "Village", "Throne Room", "Workshop"
         ]
@@ -44,13 +45,15 @@ class DominionEnv(gym.Env):
         )
                 
         # Define action space
-        #TODO: test run to see if these is a good number for the action space?
-        self.action_space = spaces.Discrete(len(self.cards))
+            # ACTION phase: 10 action cards + end phase = 11
+            # BUY phase: 16 buyable cards + end phase = 17
+        self.action_space = spaces.Discrete(28)
         
 
     def reset(self, seed=None, options: Optional[dict] = None):
         """Reset the game"""
         super().reset(seed=seed)
+        self.game.game_over = False # Ensure game state is reset
         self.game.start_game()
         return self._get_observation(), self._get_info()
     
@@ -92,95 +95,76 @@ class DominionEnv(gym.Env):
 
     def step(self, action):
         """Take an action in the game (buy a card, play an action, etc.)."""
+
+        # Check if game is over
         if self.game.game_over:
             return self._get_observation(), 0, True, False, {}
+
+        # Check if this is a new turn and start it
+        if self.game.current_player.phase == Phase.NONE:
+            self.game._validate_cards()
+            self.game.current_player = self.game.player_to_left(self.game.current_player)
+            self.game.current_player.start_turn()
+            self.game.current_player.turn_number += 1
+            if self.game.current_player.skip_turn:
+                self.game.current_player.skip_turn = False
+                return self._get_observation(), 0, False, False, {}
+            self.game.current_player.phase = Phase.ACTION
+
+        # Get available options
+        options = self.game.current_player._choice_selection()
+
+        # Ensure an action is valid
+        if action >= len(options):
+            return self._get_observation(), -1, False, False, {}  # Penalize invalid action by -1
         
-        # Perform a turn (code from dwagon --> self.game.turn())
-        self.game._validate_cards()
-        self.game.current_player = self.game.player_to_left(self.game.current_player)
-        self.game.current_player.start_turn()
+        # Choose the options
+        opt = options[action]
+        self.game.current_player._perform_action(opt)  # Perform action
 
-        # Now play the turn
-        self.game.current_player.turn_number += 1
-        if self.game.current_player.skip_turn:
-            self.game.current_player.skip_turn = False
-            return
-        self.game.current_player.phase = Phase.ACTION
-        # The loop is so cards can change player phases
-        while True:
+        # Check if phase should transition
+        if opt["action"] in ["quit", None]:  
+            # Transition from ACTION to BUY
+            if self.game.current_player.phase == Phase.ACTION:
+                self.game.current_player.phase = Phase.BUY
+            # Transition from BUY to CLEANUP
+            elif self.game.current_player.phase == Phase.BUY:
+                # Ensure any cards that have effects are triggered
+                self.game.current_player.hook_end_buy_phase()
+                self.game.current_player.phase = Phase.CLEANUP
+
+        # If in cleanup phase, end turn and start next player's turn
+        if self.game.current_player.phase == Phase.CLEANUP:
+            self.game.current_player.cleanup_phase()
             self.game.current_player._card_check()
-            match self.game.current_player.phase:
-                case Phase.ACTION:
-                    self.action_phase()
-                    if self.game.current_player.phase == Phase.ACTION:
-                        self.game.current_player.phase = Phase.BUY
-                case Phase.BUY:
-                    self.buy_phase()
-                    if self.game.current_player.phase == Phase.BUY:
-                        self.game.current_player.phase = Phase.CLEANUP
-                # Note: for now, not implementing NIGHT phase
-                case Phase.CLEANUP:
-                    self.game.current_player.cleanup_phase()
-                    break
-        self.game.current_player._card_check()
+            self.game.current_player.end_turn()
+            self.game._validate_cards()
+            self.game._turns.append(self.game.current_player.uuid)
+            self.game.current_player.phase = Phase.NONE  # Signal next player/new turn
 
-        # End the turn (code from dwagon)
-        self.game.current_player.end_turn()
-        self.game._validate_cards()
-        self.game._turns.append(self.game.current_player.uuid)
-        if self.game.isGameOver():
+        # Check if game is over
+        terminated = self.game.isGameOver()
+        if terminated:
             self.game.game_over = True
             for plr in self.game.player_list():
                 plr.game.game_over()
 
-        # Check if the game is over
-        terminated = self.game.game_over
-
-        # A simple reward concerning if won the game
         # TODO: Expand upon this reward function
-        reward = 1 if terminated and self._who_won() else 0
+        # Think about rewards for provinces, dutchy, trashing cards, etc.
+        reward = 10 if terminated and self._who_won() else -1
         
         return self._get_observation(), reward, terminated, False, self._get_info()
 
 ######################## Helper Functions ###################################################
 
-    def action_phase(self) -> None:
-        #self.game.current_player.output("************ Action Phase ************")
-        while True:
-            # options is a list of dict (each dict is an option class)
-            options = self.game.current_player._choice_selection()
-
-            # This is the bot implementation right now
-            action = len(options) - 1
-            opt = options[action]
-
-            self.game.current_player._perform_action(opt)
-            if opt["action"] == "quit":
-                return
-    
-    def buy_phase(self) -> None:
-        self.game.current_player.hook_pre_buy()
-        while True:
-            options = self.game.current_player._choice_selection()
-
-            # This is the bot implementation right now
-            action = len(options) - 1
-            opt = options[action]
-
-            self.game.current_player._perform_action(opt)
-            if opt["action"] == "quit":
-                break
-        self.game.current_player.hook_end_buy_phase()
-
     def _who_won(self):
         """Determine if Player 0 won"""\
-        # Get player 0 score, default to 0 if not found
+        # Get the scores
         scores = self.game.whoWon()
-        player_0_score = scores.get(self.game.players[0].name, 0)
-
-        # If player 0 has maximum score, they won!
-        max_score = max(scores.values())
-        return player_0_score == max_score
+        first_player = list(self.game.players.values())[0]
+        player_0_score = scores.get(first_player.name, 0)
+        # Check if first player score is the maximum score
+        return player_0_score == max(scores.values())
 
     # This function isn't really necessary I dont think
     def render(self, mode="human"):

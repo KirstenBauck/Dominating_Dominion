@@ -1,34 +1,40 @@
+# Note: might need to run: 
+# set PYTHONPATH=C:\Users\Kirsten\Documents\GitHub\Dominating_Dominion\external\pydominion;%PYTHONPATH%
+
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from external.pydominion.dominion import Piles, Phase
-from external.pydominion.dominion.Game import Game
+from dominion import Piles, Phase
+from dominion.Game import Game
 from typing import Optional
+import logging
+
+# Set up a logging file
+logging.basicConfig(level=logging.DEBUG, filename="debug_masked.log", filemode="w", format="%(message)s")
 
 class DominionEnv(gym.Env):
     "Wraps dwagon/pydominion to create a reinforcement learning environment"
-    
-    # Game phases
-    ACTION_PHASE = 0
-    BUY_PHASE = 1
-    CLEANUP_PHASE = 2
 
-    def __init__(self, num_players=2, card_set=None, quiet_flag=True):
+    def __init__(self, num_players=2, card_set=None, quiet_flag=True, debug_flag=False):
         super(DominionEnv, self).__init__()
-        self.num_players = num_players
-        # Properly initialize the cards in play (Base + Kingdom)
-        #TODO: ALphatize
+        # Have a default card set
         self.card_set = card_set if card_set else [
             "Cellar", "Market", "Militia", "Mine", "Moat", "Remodel", "Smithy", "Village", "Throne Room", "Workshop"
         ]
-        self.base_cards = ["Copper", "Silver", "Gold", "Estate", "Duchy", "Province"]
+        # Alphabetize so that if given same cards, will be represented the same way
+        self.card_set = sorted(self.card_set)
+        self.base_cards = ["Copper", "Silver", "Gold", "Estate", "Duchy", "Province", "Curse"]
         self.cards = self.base_cards + self.card_set
+
+        # Initialize other arguments
         self.quiet = quiet_flag
+        self.debug = debug_flag
+        self.num_players = num_players
 
         # Initialize Dominion game
         self.game = Game(
-            numplayers=num_players,
-            initcards=card_set,
+            numplayers=self.num_players,
+            initcards=self.card_set,
             validate_only=False,
             prosperity=False,
             potions = False,
@@ -54,19 +60,21 @@ class DominionEnv(gym.Env):
     def reset(self, seed=None, options: Optional[dict] = None):
         """Reset the game"""
         super().reset(seed=seed)
-        self.game.game_over = False # Ensure game state is reset
+        self.debug_output(f"\nResetting the game")
+        self.game.game_over = False
         self.game.players.clear()
         self.game.start_game()
+        self.debug_output(f"Started the game")
         self.game.current_player.phase = Phase.NONE
-
-        return self._get_observation(), self._get_info()
+        return self._get_observation(), {}
     
     def _get_observation(self):
         """Get the current state of the game."""
+        # Get the next player
         player = next(iter(self.game.players.values()))
 
         # Initialize card counts for each player pile
-        #   For now, not including EXILE and RESERVE
+        #   For now, not including EXILE and RESERVE (these are in expansions)
         piles = {
             "hand": player.piles[Piles.HAND]._cards,
             "duration": player.piles[Piles.DURATION]._cards,
@@ -93,90 +101,168 @@ class DominionEnv(gym.Env):
         observation[index:index + len(self.cards)] = [sum(1 for c in self.game.trash_pile._cards if c.name == card) for card in self.cards]
 
         return observation
-    
-    def _get_info(self):
-        return {}
 
     def step(self, action):
         """Take an action in the game (buy a card, play an action, etc.)."""
 
         # Check if game is over
         if self.game.game_over:
+            self.debug_output(f"Game is over")
             return self._get_observation(), 0, True, False, {}
 
-        # Check if this is a new turn and start it
+        # Check if this is a new turn and start it if it is
+        #  Note: I have set Phase.NONE to represent when a player ends their turn
         if self.game.current_player.phase == Phase.NONE:
-            self.game.current_player.output(f"NEW TURN")
             self.game._validate_cards()
             self.game.current_player = self.game.player_to_left(self.game.current_player)
-            self.game.current_player.output(f"Next Player: {self.game.current_player.name}")
             self.game.current_player.start_turn()
             self.game.current_player.turn_number += 1
+            self.debug_output(f"This is a new turn for player: {self.game.current_player.name}")
+            # Hard stop if too many turns
+            if self.game.current_player.turn_number >= 100:
+                self.debug_output(f"Reached a hard stop of 100 turns")
+                return self._get_observation, -100, True, False, {}
+            # Check if player turn was skipped
             if self.game.current_player.skip_turn:
                 self.game.current_player.skip_turn = False
+                self.debug_output(f"Skipped players turn")
                 return self._get_observation(), 0, False, False, {}
+            # Change to action phase to start turn
+            self.game.current_player.phase = Phase.ACTION
+            self.debug_output(f"********* ACTION PHASE *********")
+            #TODO: Check what output I need...
             self.game.current_player.output(f"{'#' * 30} Turn {self.game.current_player.turn_number} {'#' * 30}")
             stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
             self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
-            self.game.current_player.phase = Phase.ACTION
             self.game.current_player.output(f"*****ACTION PHASE****")
 
-        # Get available options
+        # Get available options for ACTION and BUY phase
         options = self.game.current_player._choice_selection()
+        self.debug_output(f"The number of valid options are: {len(options)}")
 
         # Ensure an action is valid
+        #  Note: This is not needed for PPO masking
         if action >= len(options):
-            return self._get_observation(), -1, False, False, {}  # Penalize invalid action by -1
+            return self._get_observation(), -5, False, False, {}
         
-        # Choose the options
+        # Choose the option
         opt = options[action]
+        self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
         self.game.current_player.output(f"Chosen Option: {opt['verb']}")
-        self.game.current_player._perform_action(opt)  # Perform action
+
+        # Perform the action
+        self.game.current_player._perform_action(opt)
+        self.debug_output(f"Performed action {opt['action']}")
+
+        # Check if they buy a card that triggers the end of game
+        terminated = self.game.isGameOver()
+        if terminated:
+            # They still need to enter cleanup phase for full completion
+            self.debug_output(f"Buying a card triggered end of game")
+            self.game.current_player.phase = Phase.CLEANUP
 
         # Check if phase should transition
         if opt["action"] in ["quit", None]:  
             # Transition from ACTION to BUY
             if self.game.current_player.phase == Phase.ACTION:
-                self.game.current_player.output(f"*****BUY PHASE****")
+                self.debug_output(f"********* BUY PHASE *********")
+                self.game.current_player.output(f"********* BUY PHASE *********")
                 self.game.current_player.phase = Phase.BUY
             # Transition from BUY to CLEANUP
             elif self.game.current_player.phase == Phase.BUY:
                 # Ensure any cards that have effects are triggered
                 self.game.current_player.hook_end_buy_phase()
-                self.game.current_player.output(f"*****CLEANUP PHASE****")
                 self.game.current_player.phase = Phase.CLEANUP
 
         # If in cleanup phase, end turn and start next player's turn
         if self.game.current_player.phase == Phase.CLEANUP:
-            self.game.current_player.output(f"Inside cleanup phase")
+            self.debug_output(f"********* CLEANUP PHASE *********")
+            self.debug_output(f"Ending Turn {self.game.current_player.name}")
+            # Cleanup phase, end player turn, and validate environment
             self.game.current_player.cleanup_phase()
-            self.game.current_player.output(f"Ending Turn {self.game.current_player.name}")
             self.game.current_player._card_check()
             self.game.current_player.end_turn()
             self.game._validate_cards()
             self.game._turns.append(self.game.current_player.uuid)
-            self.game.current_player.phase = Phase.NONE  # Signal next player/new turn
+            # Signal that it is the next players turn by setting current player phase to NONE
+            self.game.current_player.phase = Phase.NONE
 
-        # Check if game is over
-        terminated = self.game.isGameOver()
+        # Only print out terminated flag at the end of turn
+        if self.debug and self.game.current_player.phase == Phase.NONE:
+            logging.debug(f"Terminated is: {terminated}\n")
+        
+        # Do any special actions that occur at the end of the game
         if terminated:
             self.game.game_over = True
             for plr in self.game.player_list():
-                plr.game.game_over()
+                plr.game_over()
 
-        # TODO: Expand upon this reward function
-        # Think about rewards for provinces, dutchy, trashing cards, etc.
-        reward = 10 if terminated and self._who_won() else -1
+        # Calculate the reward for training
+        reward = self._calculate_reward(terminated)
         
-        return self._get_observation(), reward, terminated, False, self._get_info()
+        return self._get_observation(), reward, terminated, False, {}
 
-######################## Helper Functions ###################################################
+
+################################## Helper Functions ###################################################
+
+    def get_action_mask(self):
+        """Make a binary mask of the valid actions (1 = valid, 0=invalid)"""
+        options = self.game.current_player._choice_selection()
+        mask = np.zeros(self.action_space.n, dtype=np.int8)
+        # Get only the valid moves
+        for i, option in enumerate(options):
+            if option['selector'] != "-":
+                mask[i] = 1
+        return mask
+
+    def count_card_type(self, card_name):
+        """Counts the total number of a specific card across all piles."""
+        return sum(deck.count(card_name) for deck in self.game.current_player.piles.values())
+
+    def _calculate_reward(self, terminated):
+        """Calculate the reward function for agent"""
+        reward = 0
+        # Big reward for winning, big penalty for losing
+        if terminated:
+            reward += 100 if self._who_won() else -100
+
+            #Bonus for final score
+            final_score = self.game.current_player.get_score()
+            reward += final_score * 10
+        
+        # Victory point rewards
+        reward += self.count_card_type("Estate") * 1
+        reward += self.count_card_type("Duchy") * 3
+        reward += self.count_card_type("Province") * 6
+
+        # Curse Penalty
+        reward -= self.count_card_type("Curse") * -1
+
+        # Small penalty per turn
+        reward -= self.game.current_player.turn_number
+
+        # TODO: Reward extra buys used??
+
+        # TODO: Reward extra actions used??
+
+        ## Ending a turn with zero actions?
+        if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:
+            reward += 2
+
+        # TODO: Think about number of cards in hand?
+
+        return reward
 
     def _who_won(self):
-        """Determine if Player 0 won"""\
+        """Determine if Player 0 won"""
         # Get the scores
         scores = self.game.whoWon()
         first_player = list(self.game.players.values())[0]
         player_0_score = scores.get(first_player.name, 0)
         # Check if first player score is the maximum score
         return player_0_score == max(scores.values())
+    
+    def debug_output(self, msg):
+        """Print debug messages"""
+        if self.debug:
+            logging.debug(msg)

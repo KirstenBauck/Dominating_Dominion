@@ -1,6 +1,3 @@
-# Note: might need to run: 
-# set PYTHONPATH=C:\Users\Kirsten\Documents\GitHub\Dominating_Dominion\external\pydominion;%PYTHONPATH%
-
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces

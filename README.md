@@ -15,13 +15,17 @@ FYI: Code Kirsten ran to setup environment:
 - `git submodule update --init --recursive`
 - `pip install -e external/pydominion`
 
-# Base 10 cards to use (this is the recommended first set)
-Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Woodcutter, and Workshop
+## Base cards used
+Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Throne Room, and Workshop
 
-# Notes/articles
+# References
+- [pydominion](https://github.com/dwagon/pydominion)
 - [Stable Baseline](https://stable-baselines3.readthedocs.io/en/master/)
 - [Dominion Rulebook](https://cdn.1j1ju.com/medias/59/e6/c2-dominion-rulebook.pdf)
-- [Walkthrough](https://ianwdavis.com/dominion.html) of how one person went about AI Dominion implementation
-- [Research Paper 1](https://cs230.stanford.edu/projects_fall_2019/reports/26260348.pdf)
-- [Recent Gradiant Descent](https://johnchenresearch.github.io/demon/?ref=ruder.io) <-- Look into using YellowFin
 
+# Diagrams
+![alt text](diagrams/state_representation.png?raw=true)
+***Figure 1**: Environment/State Representation (how the agent sees the game)*
+
+![DQN Architecture](diagrams/DQN.png?raw=true)
+***Figure 2**: DQN Architecture*

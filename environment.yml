@@ -4,9 +4,13 @@ channels:
   - defaults
 
 dependencies:
-  - python>=3.8
+  - python>=3.9
   - gymnasium>=0.26.3
   - numpy
-  - pip  # Ensure pip is installed in the environment
+  - pip
   - pip:
-      - -e ./external/pydominion  # Install pydominion as editable from your local submodule path
+      - stable-baselines3  # PPO and RL algorithms
+      - sb3-contrib  # Maskable PPO
+      - -e ./external/pydominion  # Install pydominion as editable
+      - typing-extensions  # Typing support for Optional, List, etc.
+      - logging  # Ensure logging is available

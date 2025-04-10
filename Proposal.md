@@ -39,7 +39,6 @@ One important factor in our developing this model is the game-state representati
 | Victory Points | 3 VP | Player’s current victory point total |
 | Actions/Draws Left | 1 action, 2 draws | Available turn actions |
 
-------------------------------------------------------------------------
 
 ### **Expected Outcomes**
 
@@ -72,3 +71,23 @@ If the project is successful, we expect to develop an RL agent capable of playin
     - Agent performance (potentially against other agents/iterations)
     - Game statistics (i.e. average turns, scores, deck size)
 - **GitHub:** <https://github.com/KirstenBauck/Dominating_Dominion>
+
+
+
+------------------------------------------------------------------------
+### Technical terminology 
+ | Term | Description |
+|------------------|---------------------|
+| Action | A choice the agent makes at a given state to influence the environment. |
+| Agent |  The decision-making entity that interacts with the environment | 
+| Environment | The system with which the agent interacts, defined by states, actions, and rewards. |
+| Exploration | Trying new or less-known actions to discover their effects. | 
+| Gymnasium | A toolkit for developing and comparing RL algorithms | 
+| Penalty | A negative reward, used to discourage undesirable actions. | 
+| Policy |  A mapping from states to actions that form the agent's stragetgy. | 
+| Reward | A numerical feedback signal received after an action, used to guide learning. | 
+| Stable Baselines | A library of reliable reinforcement learning algorithms compatible with Gym-style environments | 
+| State | A representation of the current environment. | 
+
+
+------------------------------------------------------------------------

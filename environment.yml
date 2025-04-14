@@ -9,6 +9,8 @@ dependencies:
   - numpy
   - pip
   - pip:
+      - tensorboard # For logging
+      - rl_zoo3 # Could be used to tune hyperparameters
       - stable-baselines3  # PPO and RL algorithms
       - sb3-contrib  # Maskable PPO
       - -e ./external/pydominion  # Install pydominion as editable

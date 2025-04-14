@@ -7,7 +7,7 @@ from typing import Optional
 import logging
 
 # Set up a logging file
-logging.basicConfig(level=logging.DEBUG, filename="debug_masked.log", filemode="w", format="%(message)s")
+logging.basicConfig(level=logging.DEBUG, filename="logs/debug_masked.log", filemode="w", format="%(message)s")
 
 class DominionEnv(gym.Env):
     "Wraps dwagon/pydominion to create a reinforcement learning environment"
@@ -41,6 +41,7 @@ class DominionEnv(gym.Env):
         )
         
         # Using a box because PPO doesn't support a dict of dicts
+        #TODO: Change this for better representation if possible, so big :(
         self.observation_space = spaces.Box(
             low=0,
             high=60,  # Maximum possible number of cards <-- Copper = 60
@@ -51,6 +52,7 @@ class DominionEnv(gym.Env):
         # Define action space
             # ACTION phase: 10 action cards + end phase = 11
             # BUY phase: 16 buyable cards + end phase = 17
+            # TODO: After looking over logs, the maximum valid moves always seems to be 23...
         self.action_space = spaces.Discrete(28)
         
 
@@ -111,45 +113,67 @@ class DominionEnv(gym.Env):
         #  Note: I have set Phase.NONE to represent when a player ends their turn
         if self.game.current_player.phase == Phase.NONE:
             self.game._validate_cards()
+            self.debug_output(f"Before switching player, Current: {self.game.current_player.name}")
             self.game.current_player = self.game.player_to_left(self.game.current_player)
+            self.debug_output(f"After switching player, Current: {self.game.current_player.name}")
             self.game.current_player.start_turn()
             self.game.current_player.turn_number += 1
             self.debug_output(f"This is a new turn for player: {self.game.current_player.name}")
             # Hard stop if too many turns
-            if self.game.current_player.turn_number >= 100:
-                self.debug_output(f"Reached a hard stop of 100 turns")
+            self.debug_output(f"TURN {self.game.current_player.turn_number}: Starting new turn")
+            ##### CHANGE THIS IF NEEDED #####
+            if self.game.current_player.turn_number >= 75:
+                self.debug_output(f"Reached a hard stop of 75 turns")
+                self.game.current_player.output(f"Reached turn 75")
                 return self._get_observation, -100, True, False, {}
+            #################################
             # Check if player turn was skipped
             if self.game.current_player.skip_turn:
                 self.game.current_player.skip_turn = False
                 self.debug_output(f"Skipped players turn")
                 return self._get_observation(), 0, False, False, {}
+            # Count the number of used buys and used actions
+            self.game.current_player._used_buys = 0
+            self.game.current_player._used_actions = 0
             # Change to action phase to start turn
             self.game.current_player.phase = Phase.ACTION
             self.debug_output(f"********* ACTION PHASE *********")
-            #TODO: Check what output I need...
             self.game.current_player.output(f"{'#' * 30} Turn {self.game.current_player.turn_number} {'#' * 30}")
-            stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
-            self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
-            self.game.current_player.output(f"*****ACTION PHASE****")
+            #stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
+            #self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
 
         # Get available options for ACTION and BUY phase
         options = self.game.current_player._choice_selection()
         self.debug_output(f"The number of valid options are: {len(options)}")
+        #self.game.current_player.output(f"There are {len(options)} valid options: {options}")
 
         # Ensure an action is valid
         #  Note: This is not needed for PPO masking
+        ##### CHANGE THIS IF NEEDED #####
         if action >= len(options):
-            return self._get_observation(), -5, False, False, {}
+            return self._get_observation(), -50, False, False, {}
+        #################################
         
         # Choose the option
         opt = options[action]
         self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
-        self.game.current_player.output(f"Chosen Option: {opt['verb']}")
+        #self.game.current_player.output(f"Chosen Option: {opt['verb']}")
+
+        # Update used buys and actions
+        # TODO: fix this!
+        prev_num_actions = int(self.game.current_player.actions)
+        prev_num_buys = int(self.game.current_player.buys)
 
         # Perform the action
         self.game.current_player._perform_action(opt)
         self.debug_output(f"Performed action {opt['action']}")
+
+        # Update used buys and actions
+        # TODO: fix this!
+        if self.game.current_player.actions < prev_num_actions:
+            self.game.current_player.used_actions += 1
+        if self.game.current_player.actions < prev_num_buys:
+            self.game.current_player.used_buys += 1
 
         # Check if they buy a card that triggers the end of game
         terminated = self.game.isGameOver()
@@ -163,7 +187,6 @@ class DominionEnv(gym.Env):
             # Transition from ACTION to BUY
             if self.game.current_player.phase == Phase.ACTION:
                 self.debug_output(f"********* BUY PHASE *********")
-                self.game.current_player.output(f"********* BUY PHASE *********")
                 self.game.current_player.phase = Phase.BUY
             # Transition from BUY to CLEANUP
             elif self.game.current_player.phase == Phase.BUY:
@@ -193,6 +216,7 @@ class DominionEnv(gym.Env):
             self.game.game_over = True
             for plr in self.game.player_list():
                 plr.game_over()
+            self.game.current_player.output(f"End of game cards are: {self.game.current_player.end_of_game_cards}")
 
         # Calculate the reward for training
         reward = self._calculate_reward(terminated)
@@ -216,6 +240,7 @@ class DominionEnv(gym.Env):
         """Counts the total number of a specific card across all piles."""
         return sum(deck.count(card_name) for deck in self.game.current_player.piles.values())
 
+    ##### CHANGE THIS IF NEEDED #####
     def _calculate_reward(self, terminated):
         """Calculate the reward function for agent"""
         reward = 0
@@ -228,9 +253,9 @@ class DominionEnv(gym.Env):
             reward += final_score * 10
         
         # Victory point rewards
-        reward += self.count_card_type("Estate") * 1
-        reward += self.count_card_type("Duchy") * 3
-        reward += self.count_card_type("Province") * 6
+        reward += (self.count_card_type("Estate") * 1) * 3
+        reward += (self.count_card_type("Duchy") * 3) * 3
+        reward += (self.count_card_type("Province") * 6) * 3
 
         # Curse Penalty
         reward -= self.count_card_type("Curse") * -1
@@ -238,17 +263,22 @@ class DominionEnv(gym.Env):
         # Small penalty per turn
         reward -= self.game.current_player.turn_number
 
-        # TODO: Reward extra buys used??
+        # Do we want to reward extra buys used??
+        # Idk if this is quite the right way to do this
+        reward += self.game.current_player._used_buys * 2
 
-        # TODO: Reward extra actions used??
+        # Do we want to reward extra actions used??
+        # IDK if this is quite the right way to do this
+        reward += self.game.current_player._used_actions * 1.5
 
         ## Ending a turn with zero actions?
         if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:
-            reward += 2
+            reward -= 2
 
         # TODO: Think about number of cards in hand?
 
         return reward
+    #################################
 
     def _who_won(self):
         """Determine if Player 0 won"""

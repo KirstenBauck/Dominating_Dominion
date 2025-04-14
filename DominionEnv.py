@@ -41,7 +41,7 @@ class DominionEnv(gym.Env):
         )
         
         # Using a box because PPO doesn't support a dict of dicts
-
+        #TODO: Change this for better representation if possible, so big :(
         self.observation_space = spaces.Box(
             low=0,
             high=60,  # Maximum possible number of cards <-- Copper = 60
@@ -132,6 +132,9 @@ class DominionEnv(gym.Env):
                 self.game.current_player.skip_turn = False
                 self.debug_output(f"Skipped players turn")
                 return self._get_observation(), 0, False, False, {}
+            # Count the number of used buys and used actions
+            self.game.current_player._used_buys = 0
+            self.game.current_player._used_actions = 0
             # Change to action phase to start turn
             self.game.current_player.phase = Phase.ACTION
             self.debug_output(f"********* ACTION PHASE *********")
@@ -156,9 +159,21 @@ class DominionEnv(gym.Env):
         self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
         #self.game.current_player.output(f"Chosen Option: {opt['verb']}")
 
+        # Update used buys and actions
+        # TODO: fix this!
+        prev_num_actions = int(self.game.current_player.actions)
+        prev_num_buys = int(self.game.current_player.buys)
+
         # Perform the action
         self.game.current_player._perform_action(opt)
         self.debug_output(f"Performed action {opt['action']}")
+
+        # Update used buys and actions
+        # TODO: fix this!
+        if self.game.current_player.actions < prev_num_actions:
+            self.game.current_player.used_actions += 1
+        if self.game.current_player.actions < prev_num_buys:
+            self.game.current_player.used_buys += 1
 
         # Check if they buy a card that triggers the end of game
         terminated = self.game.isGameOver()
@@ -246,11 +261,15 @@ class DominionEnv(gym.Env):
         reward -= self.count_card_type("Curse") * -1
 
         # Small penalty per turn
-        #reward -= self.game.current_player.turn_number
+        reward -= self.game.current_player.turn_number
 
-        # TODO: Do we want to reward extra buys used??
+        # Do we want to reward extra buys used??
+        # Idk if this is quite the right way to do this
+        reward += self.game.current_player._used_buys * 2
 
-        # TODO: Do we want to reward extra actions used??
+        # Do we want to reward extra actions used??
+        # IDK if this is quite the right way to do this
+        reward += self.game.current_player._used_actions * 1.5
 
         ## Ending a turn with zero actions?
         if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:

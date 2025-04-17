@@ -1,0 +1,60 @@
+def _calculate_reward(self, terminated):
+    """Calculate the reward function for agent"""
+    reward = 0
+
+    # Calculate victory points gained from buying card
+    victory_points_gained = 0
+    if 'Estate' in self.game.current_player.stats['bought']:
+        victory_points_gained += 1
+    if 'Duchy' in self.game.current_player.stats['bought']:
+        victory_points_gained += 3
+    if 'Province' in self.game.current_player.stats['bought']:
+        victory_points_gained += 6
+
+    # Rewards for termination
+    if terminated:
+        # Rewards for if agent won
+        final_score = self.game.current_player.get_score()
+        n_turns = self.game.current_player.turn_number
+        win_reward = 100
+
+        if self._who_won():
+            reward += ((victory_points_gained + win_reward) * (final_score/n_turns))
+        else:
+            reward += ((victory_points_gained - win_reward/n_turns) + final_score)
+        #reward += 100 if self._who_won() else -100
+
+        #Bonus for final score
+        #final_score = self.game.current_player.get_score()
+        #reward += final_score * 10
+    
+
+    # Otherwise incrimental rewards
+    else:
+        # Reward victory points bought during turn
+        reward += victory_points_gained
+        if self.game.current_player.phase == Phase.NONE:
+            self.debug_output("Rewarding player at end of turn for used buys/actions")
+            # Reward using buys
+            reward += self.game.current_player._used_buys * 2
+            # Reward using actions
+            reward += self.game.current_player._used_actions * 1.5
+
+    return reward
+
+if self.game.current_player.turn_number >= 75:
+    self.debug_output(f"Reached a hard stop of 75 turns")
+    self.game.current_player.output(f"Reached turn 75")
+    return self._get_observation, -100, True, False, {}
+
+################## ENDING TURN HAND ######################
+Estate=3
+Moat=5
+Remodel=5
+Copper=9
+Cellar=6
+
+Total points: 3
+Number of turns: ~19
+Game Over: Cellar, Moat, Remodel piles are empty
+##########################################################

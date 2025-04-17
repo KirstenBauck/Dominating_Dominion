@@ -44,8 +44,8 @@ class DominionEnv(gym.Env):
         #TODO: Change this for better representation if possible, so big :(
         self.observation_space = spaces.Box(
             low=0,
-            high=60,  # Maximum possible number of cards <-- Copper = 60
-            shape=(len(self.cards) * 8,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
+            high=75,  # Maximum number of turns (which would be the max)
+            shape=((len(self.cards) * 8) + 7,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
             dtype=np.int32
         )
                 
@@ -72,34 +72,36 @@ class DominionEnv(gym.Env):
         # Get the next player
         player = next(iter(self.game.players.values()))
 
-        # Initialize card counts for each player pile
-        #   For now, not including EXILE and RESERVE (these are in expansions)
-        piles = {
-            "hand": player.piles[Piles.HAND]._cards,
-            "duration": player.piles[Piles.DURATION]._cards,
-            "defer": player.piles[Piles.DEFER]._cards,
-            "deck": player.piles[Piles.DECK]._cards,
-            "played": player.piles[Piles.PLAYED]._cards,
-            "discard": player.piles[Piles.DISCARD]._cards
-        }
+        # Basic resource values
+        actions = int(player.actions)
+        buys = int(player.buys)
+        coins = int(player.actions)
+        phase_id = player.phase.value
+        deck_size = len(player.piles[Piles.DECK]._cards)
+        score = player.get_score()
+        turn_number = player.turn_number
 
-        # Empty array for observation - player
-        observation = np.zeros(len(self.cards) * 8, dtype=np.int32)
-        def get_card_counts(pile):
-            return [sum(1 for c in pile if c.name == card) for card in self.cards]
+        # Intilize observation
+        observation = [actions, buys, coins, deck_size, score, turn_number, phase_id]
 
-        # Fill the observation array - player
-        index = 0
-        for pile_name in ["hand", "duration", "defer", "deck", "played", "discard"]:
-            observation[index:index + len(self.cards)] = get_card_counts(piles[pile_name])
-            index += len(self.cards)
+        # Card counts per pile (hand, duration, defer, deck, played, discard)
+        for pile_name in [Piles.HAND, Piles.DURATION, Piles.DEFER, Piles.DECK, Piles.PLAYED, Piles.DISCARD]:
+            pile = player.piles[pile_name]._cards
+            for card_name in self.cards:
+                count = sum(1 for c in pile if c.name == card_name)
+                observation.append(count)
 
-        # Get supply and trash pile counts
-        observation[index:index + len(self.cards)] = [len(self.game.card_piles.get(card, [])) for card in self.cards]
-        index += len(self.cards)
-        observation[index:index + len(self.cards)] = [sum(1 for c in self.game.trash_pile._cards if c.name == card) for card in self.cards]
+        # Supply pile (available cards in the game supply)
+        for card_name in self.cards:
+            count = len(self.game.card_piles.get(card_name, []))
+            observation.append(count)
 
-        return observation
+        # Trash pile (how many of each card are in the trash)
+        for card_name in self.cards:
+            count = sum(1 for c in self.game.trash_pile._cards if c.name == card_name)
+            observation.append(count)
+
+        return np.array(observation, dtype=np.int32)
 
     def step(self, action):
         """Take an action in the game (buy a card, play an action, etc.)."""
@@ -125,7 +127,7 @@ class DominionEnv(gym.Env):
             if self.game.current_player.turn_number >= 75:
                 self.debug_output(f"Reached a hard stop of 75 turns")
                 self.game.current_player.output(f"Reached turn 75")
-                return self._get_observation, -100, True, False, {}
+                return self._get_observation, -60, True, False, {}
             #################################
             # Check if player turn was skipped
             if self.game.current_player.skip_turn:
@@ -220,6 +222,7 @@ class DominionEnv(gym.Env):
 
         # Calculate the reward for training
         reward = self._calculate_reward(terminated)
+        self.debug_output(f'reward is: {reward}')
         
         return self._get_observation(), reward, terminated, False, {}
 
@@ -244,38 +247,51 @@ class DominionEnv(gym.Env):
     def _calculate_reward(self, terminated):
         """Calculate the reward function for agent"""
         reward = 0
-        # Big reward for winning, big penalty for losing
+
+        # Calculate victory points gained from buying card
+        bought = self.game.current_player.stats['bought']
+        gained = self.game.current_player.stats['gained']
+        victory_points_gained = (
+            bought.count('Province') * 6 +
+            bought.count('Duchy') * 3 +
+            bought.count('Estate') * 1 -
+            gained.count('Curse') * 1
+        )
+
+        # Rewards for termination
         if terminated:
-            reward += 100 if self._who_won() else -100
-
-            #Bonus for final score
+            # Rewards for if agent won
             final_score = self.game.current_player.get_score()
-            reward += final_score * 10
-        
-        # Victory point rewards
-        reward += (self.count_card_type("Estate") * 1) * 3
-        reward += (self.count_card_type("Duchy") * 3) * 3
-        reward += (self.count_card_type("Province") * 6) * 3
+            n_turns = self.game.current_player.turn_number
+            win_reward = 25
 
-        # Curse Penalty
-        reward -= self.count_card_type("Curse") * -1
+            if self._who_won():
+                reward += ((victory_points_gained + win_reward) + (final_score*10) - (n_turns*4))
+            else:
+                reward += ((victory_points_gained - win_reward) + (final_score*10) - (n_turns*4))
 
-        # Small penalty per turn
-        reward -= self.game.current_player.turn_number
+        # Otherwise incrimental rewards
+        else:
+            # Reward victory points bought during turn
+            reward += victory_points_gained
 
-        # Do we want to reward extra buys used??
-        # Idk if this is quite the right way to do this
-        reward += self.game.current_player._used_buys * 2
+            # Encourage increasing buying power
+            total_coppers = self.count_card_type("Copper")
+            total_silvers = self.count_card_type("Silver")
+            total_golds = self.count_card_type("Gold")
+            reward += total_silvers * 0.3
+            reward += total_golds * 0.5
 
-        # Do we want to reward extra actions used??
-        # IDK if this is quite the right way to do this
-        reward += self.game.current_player._used_actions * 1.5
+            # A slight penalty for too many coppers (deck clog)
+            reward -= max(0, total_coppers - 7) * 0.3
 
-        ## Ending a turn with zero actions?
-        if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:
-            reward -= 2
-
-        # TODO: Think about number of cards in hand?
+            # Reward using up actions and buys by end of turn
+            if self.game.current_player.phase == Phase.NONE:
+                self.debug_output("Rewarding player at end of turn for used buys/actions")
+                # Reward using buys
+                reward += self.game.current_player._used_buys * 1
+                # Reward using actions
+                reward += self.game.current_player._used_actions * 1
 
         return reward
     #################################

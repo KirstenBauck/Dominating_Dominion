@@ -10,7 +10,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 from multiprocessing import freeze_support
 
 ##### CHANGE THIS IF NEEDED #####
-log_dir = "logs/Rylan/masked_ppo_2_v3-2"
+log_dir = "logs/Rylan/masked_ppo_2_v3-Bot"
 model_name = "ppo_masked_dominion"
 #################################
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
                         max_grad_norm=0.5)
     
     model.set_logger(logger)
-    model.learn(total_timesteps=1_000_000)
+    model.learn(total_timesteps=50_000)
     
     # Save trained model
     model.save(os.path.join(log_dir, model_name))

@@ -37,8 +37,7 @@ class DominionEnv(gym.Env):
             potions = False,
             shelters = False,
             card_path="external/pydominion/dominion/cards",
-            quiet = quiet_flag,
-            bot = True
+            quiet = quiet_flag
         )
         
         # Using a box because PPO doesn't support a dict of dicts
@@ -65,24 +64,13 @@ class DominionEnv(gym.Env):
         self.game.players.clear()
         self.game.start_game()
         self.debug_output(f"Started the game")
-        
-        # Make sure the human player is always the first player (player 0)
-        # The bot will be player 1
-        player_list = list(self.game.players.values())
-        self.human_player = player_list[0]
-        self.bot_player = player_list[1]
-        
-        # Ensure the human player starts the game
-        self.game.current_player = self.human_player
-        self.bot_turn = False        
-        
-        #self.game.current_player.phase = Phase.NONE
+        self.game.current_player.phase = Phase.NONE
         return self._get_observation(), {}
     
     
     def _get_observation(self):
         """Get a more compact and informative state representation"""
-        player = self.human_player
+        player = next(iter(self.game.players.values()))
 
         # Get counts for each card type across different piles
         hand_counts = self._get_pile_counts(player.piles[Piles.HAND]._cards)
@@ -185,12 +173,6 @@ class DominionEnv(gym.Env):
             #stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
             #self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
 
-            # If it's the bot's turn, process it and return
-            if self.game.current_player == self.bot_player:
-                self.bot_turn = True
-                return self._get_observation(), 0, False, False, {"bot_turn": True}
-
-
         # Get available options for ACTION and BUY phase
         options = self.game.current_player._choice_selection()
         self.debug_output(f"The number of valid options are: {len(options)}")
@@ -255,9 +237,7 @@ class DominionEnv(gym.Env):
             self.game._turns.append(self.game.current_player.uuid)
             # Signal that it is the next players turn by setting current player phase to NONE
             self.game.current_player.phase = Phase.NONE
-            
-            self._process_bot_turn()
-                
+
         # Only print out terminated flag at the end of turn
         if self.debug and self.game.current_player.phase == Phase.NONE:
             logging.debug(f"Terminated is: {terminated}\n")
@@ -304,57 +284,7 @@ class DominionEnv(gym.Env):
 
 
 ################################## Helper Functions ###################################################
-    def _process_bot_turn(self):
-        """Run the bot’s full turn (action → buy → cleanup) and switch back to human player"""
-        self.debug_output("=== BOT TURN START ===")
-        self.game.current_player = self.bot_player
-        self.game.current_player.start_turn()
 
-        # Action Phase
-        self.debug_output("Bot Action Phase")
-        self.game.current_player.phase = Phase.ACTION
-        while self.game.current_player.phase == Phase.ACTION:
-            options = self.game.current_player._choice_selection()
-            if not options:
-                break
-            self.game.current_player._perform_action(options[0])
-            if self.game.isGameOver():
-                self.game.game_over = True
-                return
-
-        # Buy Phase
-        self.debug_output("Bot Buy Phase")
-        self.game.current_player.phase = Phase.BUY
-        while self.game.current_player.phase == Phase.BUY:
-            options = self.game.current_player._choice_selection()
-            if not options:
-                break
-            self.game.current_player._perform_action(options[0])
-            if self.game.isGameOver():
-                self.game.game_over = True
-                return
-
-        # Cleanup Phase
-        self.debug_output("Bot Cleanup Phase")
-        self.game.current_player.phase = Phase.CLEANUP
-        self.game.current_player.cleanup_phase()
-        self.game.current_player._card_check()
-        self.game.current_player.end_turn()
-        self.game._validate_cards()
-        self.game._turns.append(self.game.current_player.uuid)
-        self.game.current_player.phase = Phase.NONE
-
-        # Return control to human player
-        self.game.current_player = self.human_player
-        self.game.current_player.start_turn()
-        self.game.current_player.turn_number += 1
-        self.game.current_player.phase = Phase.ACTION
-
-        self.debug_output("=== BOT TURN END ===")
-
-                
-
-            
     def get_action_mask(self):
         """Make a binary mask of the valid actions (1 = valid, 0=invalid)"""
         options = self.game.current_player._choice_selection()
@@ -388,27 +318,27 @@ class DominionEnv(gym.Env):
             return reward
 
         # In-game rewards
-        current_player = self.game.current_player
+        # current_player = self.game.current_player
 
         # Reward engine building more explicitly
-        if hasattr(current_player, 'last_bought'):
-            last_card = current_player.last_bought
+        # if hasattr(current_player, 'last_bought'):
+        #     last_card = current_player.last_bought
 
-            # Strategic action cards (incentivize engine building)
-            if last_card in ["Village", "Market", "Smithy"]:
-                reward += 0.4  # Higher reward for key engine components
-            elif last_card == "Throne Room":
-                reward += 0.5  # High value for combo enablers
+        #     # Strategic action cards (incentivize engine building)
+        #     if last_card in ["Village", "Market", "Smithy"]:
+        #         reward += 0.4  # Higher reward for key engine components
+        #     elif last_card == "Throne Room":
+        #         reward += 0.5  # High value for combo enablers
 
-            # VP cards with diminishing returns based on timing
-            if last_card == "Province":
-                # Provinces more valuable later in game
-                turn_factor = min(1.0, current_player.turn_number / 15)
-                reward += 0.6 + (turn_factor * 0.4)
-            elif last_card == "Duchy":
-                # Duchies valuable in mid-to-late game
-                mid_game_factor = min(1.0, current_player.turn_number / 12)
-                reward += 0.2 + (mid_game_factor * 0.3)
+        #     # VP cards with diminishing returns based on timing
+        #     if last_card == "Province":
+        #         # Provinces more valuable later in game
+        #         turn_factor = min(1.0, current_player.turn_number / 15)
+        #         reward += 0.6 + (turn_factor * 0.4)
+        #     elif last_card == "Duchy":
+        #         # Duchies valuable in mid-to-late game
+        #         mid_game_factor = min(1.0, current_player.turn_number / 12)
+        #         reward += 0.2 + (mid_game_factor * 0.3)
 
         # # Reward for hand quality/potential
         # if current_player.phase == Phase.ACTION:
@@ -422,20 +352,20 @@ class DominionEnv(gym.Env):
         #     reward += 0.02 * coin_potential
 
         # Small time penalty
-        reward -= 0.001
+        # reward -= 0.001
 
         return reward
 
     #################################
 
-    def _human_won(self):
-        """Determine if human player (always player 0) won"""
+    def _who_won(self):
+        """Determine if Player 0 won"""
         # Get the scores
         scores = self.game.whoWon()
-        human_score = scores.get(self.human_player.name, 0)
-        bot_score = scores.get(self.bot_player.name, 0)
-        # Check if human player score is greater than or equal to bot score (ties go to human)
-        return human_score >= bot_score
+        first_player = list(self.game.players.values())[0]
+        player_0_score = scores.get(first_player.name, 0)
+        # Check if first player score is the maximum score
+        return player_0_score == max(scores.values())
     
     def debug_output(self, msg):
         """Print debug messages"""

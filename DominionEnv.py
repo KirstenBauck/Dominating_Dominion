@@ -120,11 +120,6 @@ class DominionEnv(gym.Env):
         #  Note: I have set Phase.NONE to represent when a player ends their turn
         if self.game.current_player.phase == Phase.NONE:
             self.game._validate_cards()
-            self.debug_output(f"Before switching player, Current: {self.game.current_player.name}")
-            self.game.current_player = self.game.player_to_left(self.game.current_player)
-            # Check to see if its the agent who should be playing
-            self.current_player_index = self.game.player_list().index(self.game.current_player)
-            self.debug_output(f"After switching player, Current: {self.game.current_player.name} with index: {self.current_player_index}")
             self.game.current_player.start_turn()
             self.game.current_player.turn_number += 1
             self.debug_output(f"This is a new turn for player: {self.game.current_player.name}")
@@ -167,12 +162,12 @@ class DominionEnv(gym.Env):
         #################################
         
         # If it's the Big Money bot's turn, select action automatically
-        if self.current_player_index != self.learning_player_index:
-            opt = self.big_money_strategy(options)
-        else:
-            # Choose the option
-            opt = options[action]
-            self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
+        #if self.current_player_index != self.learning_player_index:
+        #    opt = self.big_money_strategy(options)
+        #else:
+        # Choose the option
+        opt = options[action]
+        self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
             #self.game.current_player.output(f"Chosen Option: {opt['verb']}")
 
         # Update used buys and actions
@@ -222,6 +217,65 @@ class DominionEnv(gym.Env):
             self.game._turns.append(self.game.current_player.uuid)
             # Signal that it is the next players turn by setting current player phase to NONE
             self.game.current_player.phase = Phase.NONE
+
+            # Play the bots turn
+            self.debug_output("Playing bot")
+            self.game._validate_cards()
+            self.game.current_player = self.game.player_to_left(self.game.current_player)
+            self.current_player_index = self.game.player_list().index(self.game.current_player)
+            self.game.current_player.start_turn()
+            self.game.current_player.turn_number += 1
+            self.game.current_player.phase = Phase.ACTION
+            self.debug_output(f"********* BOT ACTION PHASE *********")
+            hand = self.game.current_player.piles[Piles.HAND]._cards
+            self.debug_output(f"Hand is: {hand}")
+
+            while self.game.current_player.phase != Phase.NONE:
+                bot_options = self.game.current_player._choice_selection()
+                bot_opt = self.big_money_strategy(bot_options)
+                self.game.current_player._perform_action(bot_opt)
+
+                # Check termination
+                terminated = self.game.isGameOver()
+                if terminated:
+                    # They still need to enter cleanup phase for full completion
+                    self.debug_output(f"Buying a card triggered end of game")
+                    self.game.current_player.phase = Phase.CLEANUP
+
+                # Check if phase should transition
+                if bot_opt["action"] in ["quit", None]:  
+                    # Transition from ACTION to BUY
+                    if self.game.current_player.phase == Phase.ACTION:
+                        self.debug_output(f"********* BOT BUY PHASE *********")
+                        self.game.current_player.phase = Phase.BUY
+                    # Transition from BUY to CLEANUP
+                    elif self.game.current_player.phase == Phase.BUY:
+                        # Ensure any cards that have effects are triggered
+                        self.game.current_player.hook_end_buy_phase()
+                        self.game.current_player.phase = Phase.CLEANUP
+                if self.game.current_player.phase == Phase.CLEANUP:
+                    self.debug_output(f"********* BOT CLEANUP PHASE *********")
+                    self.debug_output(f"Ending Turn bot")
+                    # Cleanup phase, end player turn, and validate environment
+                    self.game.current_player.cleanup_phase()
+                    self.game.current_player._card_check()
+                    self.game.current_player.end_turn()
+                    self.game._validate_cards()
+                    self.game._turns.append(self.game.current_player.uuid)
+                    # Signal that it is the next players turn by setting current player phase to NONE
+                    self.game.current_player.phase = Phase.NONE
+
+                    # Switch player
+                    self.debug_output(f"Before switching player, Current: {self.game.current_player.name}")
+                    self.game.current_player = self.game.player_to_left(self.game.current_player)
+                    # Check to see if its the agent who should be playing
+                    self.current_player_index = self.game.player_list().index(self.game.current_player)
+                    self.debug_output(f"After switching player, Current: {self.game.current_player.name} with index: {self.current_player_index}")
+                    break
+
+                if self.game.isGameOver():
+                    terminated = True
+                    break
 
         # Only print out terminated flag at the end of turn
         if self.debug and self.game.current_player.phase == Phase.NONE:
@@ -282,17 +336,17 @@ class DominionEnv(gym.Env):
             win_reward = 25
 
             if self._who_won():
-                reward += ((victory_points_gained + win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*3))
+                reward += ((victory_points_gained + win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*2))
                 self.debug_output("Agent won!")
             else:
-                reward += ((victory_points_gained - win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*3))
+                reward += ((victory_points_gained - win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*2))
                 self.debug_output("Agent lost :(")
             
             self.debug_output(f"Final scores are, AGENT({final_score_agent}), BOT({final_score_bot}), and reward is: {reward}")
 
         # No rewards when not agents turn
-        elif self.current_player_index != self.learning_player_index:
-            return 0
+        #elif self.current_player_index != self.learning_player_index:
+        #    return 0
 
         # Otherwise incrimental rewards
         else:
@@ -303,19 +357,18 @@ class DominionEnv(gym.Env):
             total_coppers = self.count_card_type("Copper")
             total_silvers = self.count_card_type("Silver")
             total_golds = self.count_card_type("Gold")
-            reward += total_silvers * 0.3
-            reward += total_golds * 0.5
+            reward += total_silvers * 0.5
+            reward += total_golds * 1
 
             # A slight penalty for too many coppers (deck clog)
             reward -= max(0, total_coppers - 7) * 0.3
 
             # Reward using up actions and buys by end of turn
-            if self.game.current_player.phase == Phase.NONE:
-                self.debug_output("Rewarding player at end of turn for used buys/actions")
+            if self.game.current_player.phase == Phase.NONE and self.current_player_index == self.learning_player_index:
                 # Reward using buys
                 reward += self.game.current_player._used_buys * 1
                 # Reward using actions
-                reward += self.game.current_player._used_actions * 1
+                reward += self.game.current_player._used_actions * 0.4
 
         return reward
     #################################

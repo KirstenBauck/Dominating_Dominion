@@ -7,7 +7,7 @@ from typing import Optional
 import logging
 
 # Set up a logging file
-logging.basicConfig(level=logging.DEBUG, filename="logs/debug_masked.log", filemode="w", format="%(message)s")
+logging.basicConfig(level=logging.DEBUG, filename="logs/Rylan/debug_masked.log", filemode="w", format="%(message)s")
 
 class DominionEnv(gym.Env):
     "Wraps dwagon/pydominion to create a reinforcement learning environment"
@@ -44,8 +44,8 @@ class DominionEnv(gym.Env):
         #TODO: Change this for better representation if possible, so big :(
         self.observation_space = spaces.Box(
             low=0,
-            high=60,  # Maximum possible number of cards <-- Copper = 60
-            shape=(len(self.cards) * 8,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
+            high=60,  # Maximum possible value
+            shape=(75,),  # Match this with your new observation vector length
             dtype=np.int32
         )
                 
@@ -67,39 +67,70 @@ class DominionEnv(gym.Env):
         self.game.current_player.phase = Phase.NONE
         return self._get_observation(), {}
     
+    
     def _get_observation(self):
-        """Get the current state of the game."""
-        # Get the next player
+        """Get a more compact and informative state representation"""
         player = next(iter(self.game.players.values()))
 
-        # Initialize card counts for each player pile
-        #   For now, not including EXILE and RESERVE (these are in expansions)
-        piles = {
-            "hand": player.piles[Piles.HAND]._cards,
-            "duration": player.piles[Piles.DURATION]._cards,
-            "defer": player.piles[Piles.DEFER]._cards,
-            "deck": player.piles[Piles.DECK]._cards,
-            "played": player.piles[Piles.PLAYED]._cards,
-            "discard": player.piles[Piles.DISCARD]._cards
-        }
+        # Get counts for each card type across different piles
+        hand_counts = self._get_pile_counts(player.piles[Piles.HAND]._cards)
+        played_counts = self._get_pile_counts(player.piles[Piles.PLAYED]._cards)
+        discard_counts = self._get_pile_counts(player.piles[Piles.DISCARD]._cards)
+        deck_size = len(player.piles[Piles.DECK]._cards)  # Just track size for deck
 
-        # Empty array for observation - player
-        observation = np.zeros(len(self.cards) * 8, dtype=np.int32)
-        def get_card_counts(pile):
-            return [sum(1 for c in pile if c.name == card) for card in self.cards]
+        # Supply pile counts
+        supply_counts = {}
+        for card in self.cards:
+            supply_counts[card] = len(self.game.card_piles.get(card, []))
 
-        # Fill the observation array - player
-        index = 0
-        for pile_name in ["hand", "duration", "defer", "deck", "played", "discard"]:
-            observation[index:index + len(self.cards)] = get_card_counts(piles[pile_name])
-            index += len(self.cards)
+        # Get resources and state
+        actions = player.actions
+        buys = player.buys
+        coins = player.coins
+        phase_id = {"NONE": 0, "ACTION": 1, "BUY": 2, "CLEANUP": 3}.get(player.phase.name, 0)
 
-        # Get supply and trash pile counts
-        observation[index:index + len(self.cards)] = [len(self.game.card_piles.get(card, [])) for card in self.cards]
-        index += len(self.cards)
-        observation[index:index + len(self.cards)] = [sum(1 for c in self.game.trash_pile._cards if c.name == card) for card in self.cards]
+        # Create a more compact observation vector
+        obs = []
 
-        return observation
+        # Resources (3 values)
+        obs.extend([actions, buys, coins])
+
+        # Phase (1 value)
+        obs.append(phase_id)
+
+        # Hand counts for each card (17 values)
+        for card in self.cards:
+            obs.append(hand_counts.get(card, 0))
+
+        # Supply counts for key cards (17 values)
+        for card in self.cards:
+            obs.append(supply_counts.get(card, 0))
+
+        # Played area counts (17 values)
+        for card in self.cards:
+            obs.append(played_counts.get(card, 0))
+
+        # Discard counts (17 values)
+        for card in self.cards:
+            obs.append(discard_counts.get(card, 0))
+
+        # Deck size (1 value)
+        obs.append(deck_size)
+
+        # Player metrics (2 values)
+        obs.append(player.get_score())  # Current score
+        obs.append(player.turn_number)  # Turn number
+
+        obs = np.array(obs, dtype=np.int32)
+        return obs
+    
+
+    def _get_pile_counts(self, pile):
+        """Helper to count cards in a pile"""
+        counts = {}
+        for card in pile:
+            counts[card.name] = counts.get(card.name, 0) + 1
+        return counts
 
     def step(self, action):
         """Take an action in the game (buy a card, play an action, etc.)."""
@@ -218,6 +249,34 @@ class DominionEnv(gym.Env):
                 plr.game_over()
             self.game.current_player.output(f"End of game cards are: {self.game.current_player.end_of_game_cards}")
 
+        # Memory Optimization
+        if self.game.current_player.turn_number % 10 == 0:
+            self.optimize_memory_usage()
+            
+        # Early stopping condition for stalled games
+        if self.game.current_player.turn_number > 30:
+            # Check if game is stalled by looking at province pile
+            province_pile = len(self.game.card_piles.get("Province", []))
+            starting_provinces = 8  # Standard number in base game
+
+            # If no provinces were bought after 30 turns, end the game
+            if province_pile == starting_provinces:
+                self.debug_output("Game appears stalled - no provinces bought after 30 turns")
+
+                # Determine winners based on current scores
+                scores = {player.name: player.get_score() for player in self.game.player_list()}
+                max_score = max(scores.values())
+
+                # Penalize stalled games
+                reward = -50 + (self.game.current_player.get_score() * 0.5)
+
+                # Check if current player has max score (tie goes to current player)
+                if scores[self.game.current_player.name] >= max_score:
+                    reward += 25  # Less than winning normally but still positive
+
+                self.game.game_over = True
+                return self._get_observation(), reward, True, False, {"stalled_game": True}
+        
         # Calculate the reward for training
         reward = self._calculate_reward(terminated)
         
@@ -242,42 +301,61 @@ class DominionEnv(gym.Env):
 
     ##### CHANGE THIS IF NEEDED #####
     def _calculate_reward(self, terminated):
-        """Calculate the reward function for agent"""
         reward = 0
-        # Big reward for winning, big penalty for losing
+
+        # Game end reward
         if terminated:
-            reward += 100 if self._who_won() else -100
+            # Win/loss with significant weight
+            reward += 50 if self._who_won() else -50
 
-            #Bonus for final score
-            final_score = self.game.current_player.get_score()
-            reward += final_score * 10
-        
-        # Victory point rewards
-        reward += (self.count_card_type("Estate") * 1) * 3
-        reward += (self.count_card_type("Duchy") * 3) * 3
-        reward += (self.count_card_type("Province") * 6) * 3
+            # Final score relative to opponents
+            player_score = self.game.current_player.get_score()
+            opponent_scores = [p.get_score() for p in self.game.player_list() if p != self.game.current_player]
+            avg_opponent_score = sum(opponent_scores) / len(opponent_scores) if opponent_scores else 0
+            score_difference = player_score - avg_opponent_score
+            reward += score_difference * 2  # Reward score advantage more heavily
 
-        # Curse Penalty
-        reward -= self.count_card_type("Curse") * -1
+            return reward
 
-        # Small penalty per turn
-        reward -= self.game.current_player.turn_number
+        # In-game rewards
+        # current_player = self.game.current_player
 
-        # Do we want to reward extra buys used??
-        # Idk if this is quite the right way to do this
-        reward += self.game.current_player._used_buys * 2
+        # Reward engine building more explicitly
+        # if hasattr(current_player, 'last_bought'):
+        #     last_card = current_player.last_bought
 
-        # Do we want to reward extra actions used??
-        # IDK if this is quite the right way to do this
-        reward += self.game.current_player._used_actions * 1.5
+        #     # Strategic action cards (incentivize engine building)
+        #     if last_card in ["Village", "Market", "Smithy"]:
+        #         reward += 0.4  # Higher reward for key engine components
+        #     elif last_card == "Throne Room":
+        #         reward += 0.5  # High value for combo enablers
 
-        ## Ending a turn with zero actions?
-        if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:
-            reward -= 2
+        #     # VP cards with diminishing returns based on timing
+        #     if last_card == "Province":
+        #         # Provinces more valuable later in game
+        #         turn_factor = min(1.0, current_player.turn_number / 15)
+        #         reward += 0.6 + (turn_factor * 0.4)
+        #     elif last_card == "Duchy":
+        #         # Duchies valuable in mid-to-late game
+        #         mid_game_factor = min(1.0, current_player.turn_number / 12)
+        #         reward += 0.2 + (mid_game_factor * 0.3)
 
-        # TODO: Think about number of cards in hand?
+        # # Reward for hand quality/potential
+        # if current_player.phase == Phase.ACTION:
+        #     # Count action cards in hand
+        #     action_cards = sum(1 for card in current_player.piles[Piles.HAND]._cards if card.isAction())
+        #     if action_cards >= 2:
+        #         reward += 0.05 * action_cards  # Reward having multiple actions
+
+        #     # Reward coin potential
+        #     coin_potential = sum(card.coin for card in current_player.piles[Piles.HAND]._cards if hasattr(card, 'coin'))
+        #     reward += 0.02 * coin_potential
+
+        # Small time penalty
+        # reward -= 0.001
 
         return reward
+
     #################################
 
     def _who_won(self):
@@ -293,3 +371,24 @@ class DominionEnv(gym.Env):
         """Print debug messages"""
         if self.debug:
             logging.debug(msg)
+
+
+    # Memory Optimization functions
+    def __del__(self):
+        """Clean up resources when the environment is deleted"""
+        if hasattr(self, 'game'):
+            del self.game
+
+    def optimize_memory_usage(self):
+        """Optimize memory usage during training"""
+        # Reset logging buffers if they're getting too large
+        if hasattr(self.game, 'log_buffer') and len(self.game.log_buffer) > 1000:
+            self.game.log_buffer = []
+
+        # Clean up any large temporary data structures
+        if hasattr(self, '_temp_data'):
+            del self._temp_data
+
+        # Run Python's garbage collector explicitly
+        import gc
+        gc.collect()

@@ -6,7 +6,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 
 ##### CHANGE THIS IF NEEDED #####
-log_dir = "logs/masked_ppo_2"
+log_dir = "logs/Rylan/masked_ppo_2"
 model_name = "ppo_masked_dominion"
 #################################
 

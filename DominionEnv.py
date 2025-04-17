@@ -27,6 +27,9 @@ class DominionEnv(gym.Env):
         self.quiet = quiet_flag
         self.debug = debug_flag
         self.num_players = num_players
+        self.learning_player_index = 0 # Set agent to be player 1
+        self.current_player_index = 0
+        self.spendall = 0 # For the big money bot
 
         # Initialize Dominion game
         self.game = Game(
@@ -45,7 +48,7 @@ class DominionEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=0,
             high=75,  # Maximum number of turns (which would be the max)
-            shape=((len(self.cards) * 8) + 7,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
+            shape=((len(self.cards) * 8) + 9,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
             dtype=np.int32
         )
                 
@@ -80,9 +83,11 @@ class DominionEnv(gym.Env):
         deck_size = len(player.piles[Piles.DECK]._cards)
         score = player.get_score()
         turn_number = player.turn_number
+        current_player_index = self.current_player_index
+        learning_player_index = self.learning_player_index
 
         # Intilize observation
-        observation = [actions, buys, coins, deck_size, score, turn_number, phase_id]
+        observation = [actions, buys, coins, deck_size, score, turn_number, phase_id, current_player_index, learning_player_index]
 
         # Card counts per pile (hand, duration, defer, deck, played, discard)
         for pile_name in [Piles.HAND, Piles.DURATION, Piles.DEFER, Piles.DECK, Piles.PLAYED, Piles.DISCARD]:
@@ -117,7 +122,9 @@ class DominionEnv(gym.Env):
             self.game._validate_cards()
             self.debug_output(f"Before switching player, Current: {self.game.current_player.name}")
             self.game.current_player = self.game.player_to_left(self.game.current_player)
-            self.debug_output(f"After switching player, Current: {self.game.current_player.name}")
+            # Check to see if its the agent who should be playing
+            self.current_player_index = self.game.player_list().index(self.game.current_player)
+            self.debug_output(f"After switching player, Current: {self.game.current_player.name} with index: {self.current_player_index}")
             self.game.current_player.start_turn()
             self.game.current_player.turn_number += 1
             self.debug_output(f"This is a new turn for player: {self.game.current_player.name}")
@@ -127,7 +134,7 @@ class DominionEnv(gym.Env):
             if self.game.current_player.turn_number >= 75:
                 self.debug_output(f"Reached a hard stop of 75 turns")
                 self.game.current_player.output(f"Reached turn 75")
-                return self._get_observation, -60, True, False, {}
+                return self._get_observation(), -60, True, False, {}
             #################################
             # Check if player turn was skipped
             if self.game.current_player.skip_turn:
@@ -141,25 +148,32 @@ class DominionEnv(gym.Env):
             self.game.current_player.phase = Phase.ACTION
             self.debug_output(f"********* ACTION PHASE *********")
             self.game.current_player.output(f"{'#' * 30} Turn {self.game.current_player.turn_number} {'#' * 30}")
+            hand = self.game.current_player.piles[Piles.HAND]._cards
+            self.debug_output(f"Hand is: {hand}")
             #stats = f"({self.game.current_player.get_score()} points, {self.game.current_player.count_cards()} cards)"
             #self.game.current_player.output(f"{self.game.current_player.name}'s Turn {stats}")
 
         # Get available options for ACTION and BUY phase
         options = self.game.current_player._choice_selection()
         self.debug_output(f"The number of valid options are: {len(options)}")
+        self.debug_output(f"Options are {options}")
         #self.game.current_player.output(f"There are {len(options)} valid options: {options}")
 
         # Ensure an action is valid
         #  Note: This is not needed for PPO masking
         ##### CHANGE THIS IF NEEDED #####
-        if action >= len(options):
-            return self._get_observation(), -50, False, False, {}
+        #if action >= len(options):
+        #    return self._get_observation(), -50, False, False, {}
         #################################
         
-        # Choose the option
-        opt = options[action]
-        self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
-        #self.game.current_player.output(f"Chosen Option: {opt['verb']}")
+        # If it's the Big Money bot's turn, select action automatically
+        if self.current_player_index != self.learning_player_index:
+            opt = self.big_money_strategy(options)
+        else:
+            # Choose the option
+            opt = options[action]
+            self.debug_output(f"Chosen Option: {opt['verb']} with index: {action}")
+            #self.game.current_player.output(f"Chosen Option: {opt['verb']}")
 
         # Update used buys and actions
         # TODO: fix this!
@@ -173,9 +187,9 @@ class DominionEnv(gym.Env):
         # Update used buys and actions
         # TODO: fix this!
         if self.game.current_player.actions < prev_num_actions:
-            self.game.current_player.used_actions += 1
-        if self.game.current_player.actions < prev_num_buys:
-            self.game.current_player.used_buys += 1
+            self.game.current_player._used_actions += 1
+        if self.game.current_player.buys < prev_num_buys:
+            self.game.current_player._used_buys += 1
 
         # Check if they buy a card that triggers the end of game
         terminated = self.game.isGameOver()
@@ -233,6 +247,7 @@ class DominionEnv(gym.Env):
         """Make a binary mask of the valid actions (1 = valid, 0=invalid)"""
         options = self.game.current_player._choice_selection()
         mask = np.zeros(self.action_space.n, dtype=np.int8)
+
         # Get only the valid moves
         for i, option in enumerate(options):
             if option['selector'] != "-":
@@ -245,12 +260,12 @@ class DominionEnv(gym.Env):
 
     ##### CHANGE THIS IF NEEDED #####
     def _calculate_reward(self, terminated):
-        """Calculate the reward function for agent"""
+        """Calculate the reward function for agent"""        
         reward = 0
 
         # Calculate victory points gained from buying card
-        bought = self.game.current_player.stats['bought']
-        gained = self.game.current_player.stats['gained']
+        bought = self.game.player_list()[self.learning_player_index].stats['bought']
+        gained = self.game.player_list()[self.learning_player_index].stats['gained']
         victory_points_gained = (
             bought.count('Province') * 6 +
             bought.count('Duchy') * 3 +
@@ -261,14 +276,23 @@ class DominionEnv(gym.Env):
         # Rewards for termination
         if terminated:
             # Rewards for if agent won
-            final_score = self.game.current_player.get_score()
-            n_turns = self.game.current_player.turn_number
+            final_score_agent = self.game.player_list()[self.learning_player_index].get_score()
+            final_score_bot = self.game.player_list()[1].get_score()
+            n_turns = self.game.player_list()[self.learning_player_index].turn_number
             win_reward = 25
 
             if self._who_won():
-                reward += ((victory_points_gained + win_reward) + (final_score*10) - (n_turns*4))
+                reward += ((victory_points_gained + win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*3))
+                self.debug_output("Agent won!")
             else:
-                reward += ((victory_points_gained - win_reward) + (final_score*10) - (n_turns*4))
+                reward += ((victory_points_gained - win_reward) + (final_score_agent) - (n_turns*4) + ((final_score_agent - final_score_bot)*3))
+                self.debug_output("Agent lost :(")
+            
+            self.debug_output(f"Final scores are, AGENT({final_score_agent}), BOT({final_score_bot}), and reward is: {reward}")
+
+        # No rewards when not agents turn
+        elif self.current_player_index != self.learning_player_index:
+            return 0
 
         # Otherwise incrimental rewards
         else:
@@ -296,16 +320,119 @@ class DominionEnv(gym.Env):
         return reward
     #################################
 
+    def big_money_strategy(self, options):
+        """Play the big money strategy"""
+
+        # Should never have any action cards, always choose to quit
+        if self.game.current_player.phase == Phase.ACTION:
+            opt = options[0]
+
+        # Otherwise, in Buy Phase
+        else:
+            # Calculate the money
+            money = self.count_money_in_hand()
+            # How Pydominion is setup is strange, so need to be able to keep track of "spend" vs "buy"
+            if money == 0 and self.spendall != 0:
+                money = self.spendall
+            self.debug_output(f"Player has {money} money")
+
+            # Buy Province if it can
+            if money >= 8:
+                # Check to see if can just buy province from the list of options
+                province_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "buy" 
+                     and option['name'] == "Province"),
+                     0  # default if not found
+                     )
+                opt = options[province_index]
+                self.spendall = 0
+                self.debug_output(f"Choose to buy a province: {opt}")
+                # If you can't, then need to first choose to spend your money
+                if province_index == 0:
+                    spend_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "spendall"), 0  # default if not found
+                     )
+                    opt = options[spend_index]
+                    self.spendall = money
+                    self.debug_output(f"Didn't find a province, choose to spend money first: {opt}")
+            # Buy a Gold if it can
+            elif money >= 6:
+                # Check to see if can just buy gold from the list of options
+                gold_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "buy" 
+                     and option['name'] == "Gold"),
+                     0  # default if not found
+                     )
+                opt = options[gold_index]
+                self.spendall = 0
+                self.debug_output(f"Choose to buy a Gold: {opt}")
+                # If you can't, then need to first choose to spend your money
+                if gold_index == 0:
+                    spend_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "spendall"), 0  # default if not found
+                     )
+                    opt = options[spend_index]
+                    self.spendall = money
+                    self.debug_output(f"Didn't find a gold, choose to spend money first: {opt}")
+            # Buy a Silver if it can
+            elif money >= 3:
+                # Check to see if can just buy silver from the list of options
+                silver_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "buy" 
+                     and option['name'] == "Silver"),
+                     0  # default if not found
+                     )
+                opt = options[silver_index]
+                self.spendall = 0
+                self.debug_output(f"Choose to buy a Silver: {opt}")
+                # If you can't, then need to first choose to spend your money
+                if silver_index == 0:
+                    spend_index = next(
+                    (i for i, option in enumerate(options)
+                     if option['selector'] != "-" and option['action'] == "spendall"), 0  # default if not found
+                     )
+                    opt = options[spend_index]
+                    self.spendall = money
+                    self.debug_output(f"Didn't find a silver, choose to spend money first: {opt}")
+            # Dont buy anything
+            else:
+                opt = options[0]
+                self.debug_output(f"Didnt buy anything, dont have the money")
+        return opt
+
     def _who_won(self):
         """Determine if Player 0 won"""
         # Get the scores
         scores = self.game.whoWon()
-        first_player = list(self.game.players.values())[0]
-        player_0_score = scores.get(first_player.name, 0)
+        first_player = list(self.game.players.values())[self.learning_player_index]
+        player_0_score = scores.get(first_player.name, self.learning_player_index)
         # Check if first player score is the maximum score
+        # Note: Consider a tie a win...
         return player_0_score == max(scores.values())
     
     def debug_output(self, msg):
         """Print debug messages"""
         if self.debug:
             logging.debug(msg)
+
+    def count_money_in_hand(self):
+        """Get the amount of money in player hand"""
+        money_values = {
+            "Copper": 1,
+            "Silver": 2,
+            "Gold": 3,
+        }
+
+        total = 0
+        hand = self.game.current_player.piles[Piles.HAND]._cards
+
+        for card in hand:
+            if card.name in money_values:
+                total += money_values[card.name]
+        
+        return total

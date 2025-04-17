@@ -318,27 +318,27 @@ class DominionEnv(gym.Env):
             return reward
 
         # In-game rewards
-        # current_player = self.game.current_player
+        current_player = self.game.current_player
 
         # Reward engine building more explicitly
-        # if hasattr(current_player, 'last_bought'):
-        #     last_card = current_player.last_bought
+        if hasattr(current_player, 'last_bought'):
+            last_card = current_player.last_bought
 
-        #     # Strategic action cards (incentivize engine building)
-        #     if last_card in ["Village", "Market", "Smithy"]:
-        #         reward += 0.4  # Higher reward for key engine components
-        #     elif last_card == "Throne Room":
-        #         reward += 0.5  # High value for combo enablers
+            # Strategic action cards (incentivize engine building)
+            if last_card in ["Village", "Market", "Smithy"]:
+                reward += 0.4  # Higher reward for key engine components
+            elif last_card == "Throne Room":
+                reward += 0.5  # High value for combo enablers
 
-        #     # VP cards with diminishing returns based on timing
-        #     if last_card == "Province":
-        #         # Provinces more valuable later in game
-        #         turn_factor = min(1.0, current_player.turn_number / 15)
-        #         reward += 0.6 + (turn_factor * 0.4)
-        #     elif last_card == "Duchy":
-        #         # Duchies valuable in mid-to-late game
-        #         mid_game_factor = min(1.0, current_player.turn_number / 12)
-        #         reward += 0.2 + (mid_game_factor * 0.3)
+            # VP cards with diminishing returns based on timing
+            if last_card == "Province":
+                # Provinces more valuable later in game
+                turn_factor = min(1.0, current_player.turn_number / 15)
+                reward += 0.6 + (turn_factor * 0.4)
+            elif last_card == "Duchy":
+                # Duchies valuable in mid-to-late game
+                mid_game_factor = min(1.0, current_player.turn_number / 12)
+                reward += 0.2 + (mid_game_factor * 0.3)
 
         # # Reward for hand quality/potential
         # if current_player.phase == Phase.ACTION:
@@ -352,7 +352,7 @@ class DominionEnv(gym.Env):
         #     reward += 0.02 * coin_potential
 
         # Small time penalty
-        # reward -= 0.001
+        reward -= 0.001
 
         return reward
 

@@ -13,8 +13,14 @@ Cellar, Market, Militia, Mine, Moat, Remodel, Smithy, Village, Throne Room, and 
 - [Dominion Rulebook](https://cdn.1j1ju.com/medias/59/e6/c2-dominion-rulebook.pdf)
 
 # Diagrams
-![alt text](diagrams/state_representation.png?raw=true)
+![Environment Representation](diagrams/state_representation.png?raw=true)
 ***Figure 1**: Environment/State Representation (how the agent sees the game)*
 
+![Action Space](diagrams/action_representation.png?raw=true)
+***Figure 2**: Action Space Representation (how the agent plays the game)*
+
+![PPO Architecture](diagrams/PPO.png?raw=true)
+***Figure 3**: PPO Architecture*
+
 ![DQN Architecture](diagrams/DQN.png?raw=true)
-***Figure 2**: DQN Architecture*
+***Figure 4**: DQN Architecture*

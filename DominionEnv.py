@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.DEBUG, filename="logs/debug_masked.log", filem
 class DominionEnv(gym.Env):
     "Wraps dwagon/pydominion to create a reinforcement learning environment"
 
-    def __init__(self, num_players=2, card_set=None, quiet_flag=True, debug_flag=False):
+    def __init__(self, num_players=2, card_set=None, quiet_flag=True, debug_flag=False, opponent='bot'):
         super(DominionEnv, self).__init__()
         # Have a default card set
         self.card_set = card_set if card_set else [
@@ -31,6 +31,7 @@ class DominionEnv(gym.Env):
         self.current_player_index = 0
         self.spendall = 0 # For the big money bot
         self.terminated = False # Is game over?
+        self.opponent = opponent
 
         # Initialize Dominion Base game
         self.game = Game(
@@ -263,6 +264,21 @@ class DominionEnv(gym.Env):
         # Didn't have enough money, default to do nothing
         self.debug_output(f"Didnt buy anything, dont have the money")
         return options[0]
+    
+    def human_player(self, options):
+        """
+        Play the game against a human player
+
+        Args:
+            options (list): List of possible actions for the player
+        Returns:
+            Option: The option to take based on player input
+        """
+
+        prompt = self.game.current_player._generate_prompt()
+        self.game.current_player.output("\n##### Choose from the options below #####")
+        opt = self.game.current_player.user_input(options, prompt)
+        return opt
 
     def _count_money_in_hand(self):
         """Get the amount of money in a player's hand"""
@@ -326,7 +342,10 @@ class DominionEnv(gym.Env):
         # Make choice selection for ACTION and BUY phase based on bot
         while player.phase != Phase.NONE:
             options = player._choice_selection()
-            opt = self.big_money_strategy(options) # Use Big Money Strategy
+            if self.opponent == 'bot':
+                opt = self.big_money_strategy(options) # Use Big Money Strategy
+            elif self.opponent == 'human':
+                opt = self.human_player(options) # Have human play against
             player._perform_action(opt)
 
             if opt["action"] in ["quit", None]:

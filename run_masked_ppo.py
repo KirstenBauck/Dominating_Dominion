@@ -22,7 +22,8 @@ env = gym.make("Dominion-v1",
          card_set=["Cellar", "Market", "Militia", "Mine", "Moat", 
                    "Remodel", "Smithy", "Village", "Throne Room", "Workshop"],
          quiet_flag=True,
-         debug_flag = True
+         debug_flag = True,
+         opponent = 'bot'
         )
 
 # Mask the environment so that it only includes valid action choices

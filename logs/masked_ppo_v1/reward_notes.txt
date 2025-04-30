@@ -1,0 +1,45 @@
+##### CHANGE THIS IF NEEDED #####
+if self.game.current_player.turn_number >= 100:
+    self.debug_output(f"Reached a hard stop of 100 turns")
+    self.game.current_player.output(f"Reached turn 100")
+    return self._get_observation, -100, True, False, {}
+#################################
+
+def _calculate_reward(self, terminated):
+    """Calculate the reward function for agent"""
+    reward = 0
+    # Big reward for winning, big penalty for losing
+    if terminated:
+        reward += 100 if self._who_won() else -100
+
+        #Bonus for final score
+        final_score = self.game.current_player.get_score()
+        reward += final_score * 10
+    
+    # Victory point rewards
+    reward += (self.count_card_type("Estate") * 1)
+    reward += (self.count_card_type("Duchy") * 3)
+    reward += (self.count_card_type("Province") * 6)
+
+    # Curse Penalty
+    reward -= self.count_card_type("Curse") * -1
+
+    # Small penalty per turn
+    reward -= self.game.current_player.turn_number
+
+    ## Ending a turn with zero actions?
+    if self.game.current_player.phase == Phase.NONE and self.game.current_player.actions == 0:
+        reward -= 2
+
+    return reward
+
+################## ENDING TURN HAND ######################
+Copper = 9
+Remodel = 5
+Estate = 3
+Cellar = 4
+Moat = 5
+
+Total points: 3
+Number of turns: ~20
+##########################################################

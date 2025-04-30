@@ -49,7 +49,7 @@ class DominionEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=0,
             high=75,  # Maximum number of turns (which would be the max)
-            shape=((len(self.cards) * 8) + 9,),  # 8 zones: hand, duration, defer, deck, played, discard, supply, trash
+            shape=((len(self.cards) * 7) + 7,),  # 7 zones: hand, duration, deck, played, discard, supply, trash
             dtype=np.int32
         )
                 
@@ -82,14 +82,12 @@ class DominionEnv(gym.Env):
         deck_size = len(player.piles[Piles.DECK]._cards)
         score = player.get_score()
         turn_number = player.turn_number
-        current_player_index = self.current_player_index
-        learning_player_index = self.learning_player_index
 
         # Initialize observation with basic resource values
-        observation = [actions, buys, coins, deck_size, score, turn_number, phase_id, current_player_index, learning_player_index]
+        observation = [actions, buys, coins, deck_size, score, turn_number, phase_id]
 
-        # Card counts per pile (hand, duration, defer, deck, played, discard)
-        for pile_name in [Piles.HAND, Piles.DURATION, Piles.DEFER, Piles.DECK, Piles.PLAYED, Piles.DISCARD]:
+        # Card counts per pile (hand, duration, deck, played, discard)
+        for pile_name in [Piles.HAND, Piles.DURATION, Piles.DECK, Piles.PLAYED, Piles.DISCARD]:
             pile = player.piles[pile_name]._cards
             for card_name in self.cards:
                 count = sum(1 for c in pile if c.name == card_name)
@@ -144,6 +142,12 @@ class DominionEnv(gym.Env):
 
 ################################## Helper Functions ###################################################
 
+    def debug_output(self, msg):
+        """Print debug messages"""
+        if self.debug:
+            logging.debug(msg)
+
+    ########### PPO Action Masking ###############
     def get_action_mask(self):
         """Make a binary mask of the valid actions (1 = valid, 0=invalid)"""
         options = self.game.current_player._choice_selection()
@@ -153,18 +157,16 @@ class DominionEnv(gym.Env):
             if option['selector'] != "-":
                 mask[i] = 1
         return mask
+    ##############################################
 
-    def debug_output(self, msg):
-        """Print debug messages"""
-        if self.debug:
-            logging.debug(msg)
-
+    ########## Calculating Reward ################
     def calculate_reward(self):
         """Calculate the reward function for agent"""        
         reward = 0
 
         # Calculate victory points gained from buying card
         bought = self.game.player_list()[self.learning_player_index].stats['bought']
+        self.debug_output(f"Player bought: {bought}")
         gained = self.game.player_list()[self.learning_player_index].stats['gained']
         victory_points_gained = (
             bought.count('Province') * 6 +
@@ -205,9 +207,30 @@ class DominionEnv(gym.Env):
             reward -= max(0, total_coppers - 7) * 0.3
 
             # Reward using more actions and buys by end of turn
-            if self.game.current_player.phase == Phase.NONE and self.current_player_index == self.learning_player_index:
+            if self.game.current_player.phase == Phase.NONE:
                 reward += self.game.current_player._used_buys * 1
                 reward += self.game.current_player._used_actions * 0.4
+            
+            # Reward Engine
+            last_card = bought[-1]
+            self.debug_output(f"Last card bought is: {last_card}")
+            if last_card in ["Village", "Market", "Smithy"]:
+                reward += 0.4  # Higher reward for key engine components
+            elif last_card == "Throne Room":
+                reward += 0.5  # High value for combo enablers
+
+            # VP cards with diminishing returns based on timing
+            if last_card == "Province":
+                # Provinces more valuable later in game
+                turn_factor = min(1.0, self.game.current_player.turn_number / 15)
+                reward += 0.6 + (turn_factor * 0.4)
+            elif last_card == "Duchy":
+                # Duchies valuable in mid-to-late game
+                mid_game_factor = min(1.0, self.game.current_player.turn_number / 12)
+                reward += 0.2 + (mid_game_factor * 0.3)
+            
+            # Small time penalty
+            reward -= 0.1
 
         return reward
 
@@ -221,6 +244,9 @@ class DominionEnv(gym.Env):
         first_player = list(self.game.players.values())[self.learning_player_index]
         player_0_score = scores.get(first_player.name, self.learning_player_index)
         return player_0_score == max(scores.values())
+    ######################################################
+    
+    ######## Opponent Option Choosing Strategy ###########
 
     def big_money_strategy(self, options):
         """
@@ -264,21 +290,6 @@ class DominionEnv(gym.Env):
         # Didn't have enough money, default to do nothing
         self.debug_output(f"Didnt buy anything, dont have the money")
         return options[0]
-    
-    def human_player(self, options):
-        """
-        Play the game against a human player
-
-        Args:
-            options (list): List of possible actions for the player
-        Returns:
-            Option: The option to take based on player input
-        """
-
-        prompt = self.game.current_player._generate_prompt()
-        self.game.current_player.output("\n##### Choose from the options below #####")
-        opt = self.game.current_player.user_input(options, prompt)
-        return opt
 
     def _count_money_in_hand(self):
         """Get the amount of money in a player's hand"""
@@ -328,6 +339,22 @@ class DominionEnv(gym.Env):
             if opt['selector'] != "-" and opt['action'] == "spendall":
                 return opt
         return None
+    
+    def human_player(self, options):
+        """
+        Play the game against a human player
+
+        Args:
+            options (list): List of possible actions for the player
+        Returns:
+            Option: The option to take based on player input
+        """
+
+        prompt = self.game.current_player._generate_prompt()
+        self.game.current_player.output("\n##### Choose from the options below #####")
+        opt = self.game.current_player.user_input(options, prompt)
+        return opt
+    #####################################################
 
     def _play_bot_turn(self):
         """Play the entirety of the big moneys bot's turn"""

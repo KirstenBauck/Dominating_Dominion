@@ -1,0 +1,79 @@
+def _calculate_reward(self, terminated):
+    """Calculate the reward function for agent"""
+    reward = 0
+
+    # Large reward/penalty only at game end
+    if terminated:
+        # Win/loss reward
+        reward += 10 if self._who_won() else -10
+
+        # Final score as a component of end reward
+        final_score = self.game.current_player.get_score()
+        reward += final_score * 0.5  # Scaled down to avoid dominating other signals
+
+        return reward  # Only return large rewards at the end of episodes
+
+    # Small incremental rewards during gameplay
+    current_player = self.game.current_player
+
+    # Reward for buying victory point cards (immediate feedback)
+    # Only reward new acquisitions to prevent repeated rewards for the same cards
+    if current_player.phase == Phase.BUY and hasattr(current_player, 'last_bought'):
+        last_card = current_player.last_bought
+        if last_card == "Province":
+            reward += 0.6  # High value card
+        elif last_card == "Duchy":
+            reward += 0.3  # Medium value card
+        elif last_card == "Estate":
+            reward += 0.1  # Low value card but still victory points
+        elif last_card == "Curse":
+            reward -= 0.1  # Penalty for curses
+
+    # Reward for good action usage
+    if current_player.phase in [Phase.ACTION, Phase.BUY]:
+        # Ensure we're comparing integers by explicitly accessing the raw action/buy values
+        curr_actions = int(getattr(current_player, 'actions', 0))
+        curr_buys = int(getattr(current_player, 'buys', 0))
+
+        # If we have previous values to compare with
+        if hasattr(current_player, '_prev_actions') and hasattr(current_player, '_prev_buys'):
+            # Ensure prev values are also integers
+            prev_actions = int(current_player._prev_actions) if hasattr(current_player._prev_actions, '__int__') else 0
+            prev_buys = int(current_player._prev_buys) if hasattr(current_player._prev_buys, '__int__') else 0
+
+            # Calculate differences
+            actions_used = max(0, prev_actions - curr_actions)
+            buys_used = max(0, prev_buys - curr_buys)
+
+            reward += actions_used * 0.02  # Small immediate feedback
+            reward += buys_used * 0.03
+
+    # Store current state for next comparison as integers
+    current_player._prev_actions = int(getattr(current_player, 'actions', 0))
+    current_player._prev_buys = int(getattr(current_player, 'buys', 0))
+
+    # Reward for increasing money potential (buying treasure)
+    if current_player.phase == Phase.BUY and hasattr(current_player, 'last_bought'):
+        if current_player.last_bought == "Gold":
+            reward += 0.3
+        elif current_player.last_bought == "Silver":
+            reward += 0.15
+
+    # Very small time penalty to encourage efficiency
+    reward -= 0.001
+
+    return reward 
+
+################## ENDING TURN HAND ######################
+Copper=29
+Cellar=5
+Moat=5
+Estate=6
+Remodel=5
+Village=2
+Workshop=1
+
+Total points: 7
+Number of turns: ~42
+Game Over: Copper, Estate, Cellar piles are empty
+##########################################################

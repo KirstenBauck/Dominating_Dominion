@@ -7,7 +7,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 
 # Where to log, change each time run
-log_dir = "logs/masked_ppo_6"
+log_dir = "logs/masked_ppo_v6"
 model_name = "ppo_masked_dominion"
 
 #Register the environment
@@ -22,7 +22,8 @@ env = gym.make("Dominion-v1",
          card_set=["Cellar", "Market", "Militia", "Mine", "Moat", 
                    "Remodel", "Smithy", "Village", "Throne Room", "Workshop"],
          quiet_flag=True,
-         debug_flag = False
+         debug_flag = True,
+         opponent = 'bot'
         )
 
 # Mask the environment so that it only includes valid action choices
@@ -31,7 +32,7 @@ env = ActionMasker(env, lambda env: env.unwrapped.get_action_mask())
 
 # Set up logging to CSV and TensorBoard only
 os.makedirs(log_dir, exist_ok=True)
-logger = configure(log_dir, ["csv", "tensorboard"])
+logger = configure(log_dir, ["csv"])
 
 # Create and train the model
 model = MaskablePPO("MlpPolicy", env, 
@@ -56,6 +57,7 @@ model = MaskablePPO("MlpPolicy", env,
                     vf_coef=0.5,
                     max_grad_norm=0.5,
                     normalize_advantage=True) # Help stabilize updates)
+
 model.set_logger(logger)
 model.learn(total_timesteps=1_000_000)
 

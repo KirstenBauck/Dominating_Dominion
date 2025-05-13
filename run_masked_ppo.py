@@ -1,14 +1,14 @@
 import os
 import gymnasium as gym
+import torch
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.logger import configure
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.wrappers import ActionMasker
 
-##### CHANGE THIS IF NEEDED #####
-log_dir = "logs/masked_ppo_5"
+# Where to log, change each time run
+log_dir = "logs/masked_ppo_v6"
 model_name = "ppo_masked_dominion"
-#################################
 
 #Register the environment
 gym.register(
@@ -35,20 +35,29 @@ os.makedirs(log_dir, exist_ok=True)
 logger = configure(log_dir, ["csv"])
 
 # Create and train the model
-# If agent is short term greedy: Raise gamma or gaw_lambda
-# IF agent always does the same thing: Raise ent_coef
-policy_kwargs=dict(net_arch=[256, 256])
-model = MaskablePPO("MlpPolicy", env, verbose=0,
-                    ent_coef = 0.03, # Encourage more exploration
-                    n_steps=4096, # Longer rollouts = More context
-                    batch_size=256, # Smooth out the variance
-                    gae_lambda=0.98, # More reliance on long-term rewards
-                    clip_range=0.3, # Allow for more expressive updates
-                    normalize_advantage=True, # Help stabilize updates
-                    learning_rate = 2.5e-4, # Make updates finer
-                    gamma = 0.995, # Keep long-term consequence relevant
-                    policy_kwargs = policy_kwargs 
-                    )
+model = MaskablePPO("MlpPolicy", env, 
+                    verbose=0, # Turn off console spam
+                    # Network structure
+                    policy_kwargs=dict(
+                        net_arch=dict(
+                            pi=[512, 256, 128],  # Deeper policy network
+                            vf=[512, 256, 128]   # Deeper value network
+                        ),
+                        activation_fn=torch.nn.ReLU
+                    ),
+                    # PPO parameters
+                    learning_rate=5e-5,  # Lower learning rate for more stability
+                    n_steps=4096,        # Longer rollouts = More Context
+                    batch_size=256,      # Smooth out the variance
+                    n_epochs=15,
+                    gamma=0.995,         # Keep long-term consequence relevant
+                    gae_lambda=0.98,     # More reliance on long-term rewards
+                    clip_range=0.3,      # Allow for more expressive updates
+                    ent_coef=0.03,       # Encourage more exploration
+                    vf_coef=0.5,
+                    max_grad_norm=0.5,
+                    normalize_advantage=True) # Help stabilize updates)
+
 model.set_logger(logger)
 model.learn(total_timesteps=1_000_000)
 
